@@ -312,6 +312,36 @@ if [ -d "$work/cps2" ]; then
 		|| report FAIL "cps2: the CPU clock is part of the machine"
 fi
 
+# analog: Forgotten Worlds' rotary aim (P1 Aim X is the first axis). Coin,
+# Start, then the aim held; it must change the game, identically in both
+# flavors, and survive a save and load around every frame.
+if [ -f "$roms/forgottn.zip" ]; then
+	workdir "$work/analog" cps1 forgottn.zip
+	aim="--press 11:600:6 --press 10:700:6 --axis 0:600:1000:400"
+	# shellcheck disable=SC2086
+	"$native" "$work/analog" --frames 1500 --report 50 --press 11:600:6 --press 10:700:6 > "$work/analog.still" 2>/dev/null || true
+	# shellcheck disable=SC2086
+	"$native" "$work/analog" --frames 1500 --report 50 $aim > "$work/analog.n" 2>/dev/null || true
+	# shellcheck disable=SC2086
+	"$wbxrun" "$core" "$work/analog" --frames 1500 --report 50 $aim > "$work/analog.w" 2>/dev/null || true
+	# shellcheck disable=SC2086
+	"$wbxrun" "$core" "$work/analog" --frames 1500 --report 50 $aim --rerecord > "$work/analog.r" 2>/dev/null || true
+	"$wbxrun" "$core" "$work/analog" --frames 1 --list-panel > "$work/analog.panel" 2>/dev/null || true
+	live="$(grep -c '^axis .* active' "$work/analog.panel" || true)"
+	if [ "$live" -ge 1 ] && [ -s "$work/analog.n" ] && ! cmp -s "$work/analog.still" "$work/analog.n"; then
+		report PASS "cps1: an analog axis moves the game" "Forgotten Worlds' aim, $live axes live"
+	else
+		report FAIL "cps1: an analog axis moves the game" "$live axes live"
+	fi
+	if cmp -s "$work/analog.n" "$work/analog.w" && cmp -s "$work/analog.w" "$work/analog.r"; then
+		report PASS "cps1: analog native == sandbox == rerecord"
+	else
+		report FAIL "cps1: analog native == sandbox == rerecord"
+	fi
+else
+	report SKIP "cps1: analog legs" "no forgottn.zip in $roms"
+fi
+
 # the game's own settings, as the engine asks for them before a project exists
 if [ -x "$run" ] && [ -f "$pkg" ] && [ -f "$roms/msword.zip" ]; then
 	"$run" "$pkg" "$roms/msword.zip" --suggest --settings '{"machine":"cps1"}' > "$work/suggest.json" 2>&1 || true

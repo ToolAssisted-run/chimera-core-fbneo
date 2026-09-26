@@ -119,11 +119,16 @@ decided with the user:
   the game has no area for, or of another size, is a load error. Neo Geo
   round trip: identical bytes, and a different machine from a fresh boot.
 - **Analog**: two axes a player, -1024..1023 (FBNeo's scale), bound to the
-  player's analog inputs in driver order. No game here has one yet.
+  player's analog inputs in driver order. Forgotten Worlds (CPS-1) binds its
+  rotary aim to four axes (P1/P2 Aim X, Y); holding P1 Aim X from frame 1000
+  aims the soldier and scores 1600 by frame 1500 where the still run scores
+  0; native == sandbox == rerecord (gate).
 
 ## Open
 
-- **Analog axes are untested**: no game with a dial, trackball or paddle
-  has been run.
-- Only one game per system has been run, and no vertical game: which way
-  one is turned upright (fbneo_frame) is unverified.
+- **Vertical games are untried.** 1944 turned out to be a horizontal game
+  (384x224, not flagged vertical); FBNeo's vertical parents here are 1941,
+  Mercs and Varth (CPS-1), 19XX and Dimahoo (CPS-2).
+- Only one game per system has been run (two on CPS-1 and CPS-2), and no
+  vertical game: which way one is turned upright (fbneo_frame) is
+  unverified.

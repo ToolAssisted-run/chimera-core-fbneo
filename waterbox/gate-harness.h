@@ -7,6 +7,7 @@
  * options: --frames N          run length (default 60)
  *          --report N          a digest line every N frames, and the last
  *          --press I:FIRST:N   hold panel control I for N frames from FIRST
+ *          --axis I:V:FIRST:N  hold analog axis I at V for N frames from FIRST
  *          --exercise          a deterministic wander over the active
  *                              player controls (never Reset/Test/Service)
  *          --list-panel        print the panel, and which controls are live
@@ -59,6 +60,8 @@ struct gate_opts
 	long report;
 	int presses;
 	struct { int index; long first, count; } press[GATE_MAX_PRESS];
+	int axes;
+	struct { int index, value; long first, count; } axis[GATE_MAX_PRESS];
 	int exercise;
 	int listPanel;
 	int listDips;
@@ -96,6 +99,20 @@ static int gate_parse_opts(int argc, char **argv, int first, struct gate_opts *o
 			o->press[o->presses].first = f;
 			o->press[o->presses].count = c;
 			o->presses++;
+		}
+		else if (!strcmp(argv[i], "--axis") && i + 1 < argc && o->axes < GATE_MAX_PRESS)
+		{
+			int idx, val; long f, c;
+			if (sscanf(argv[++i], "%d:%d:%ld:%ld", &idx, &val, &f, &c) != 4)
+			{
+				fprintf(stderr, "--axis wants INDEX:VALUE:FIRST:COUNT\n");
+				return 0;
+			}
+			o->axis[o->axes].index = idx;
+			o->axis[o->axes].value = val;
+			o->axis[o->axes].first = f;
+			o->axis[o->axes].count = c;
+			o->axes++;
 		}
 		else if (!strcmp(argv[i], "--exercise")) o->exercise = 1;
 		else if (!strcmp(argv[i], "--list-panel")) o->listPanel = 1;
@@ -160,8 +177,12 @@ static int gate_run(const struct gate_core *c, const struct gate_opts *o)
 	}
 	const int count = c->button_count();
 	if (o->listPanel)
+	{
 		for (int i = 0; i < count; i++)
 			printf("panel %d '%s' %s\n", i, c->button_name(i), c->button_active(i) ? "active" : "-");
+		for (int a = 0; a < c->axis_count(); a++)
+			printf("axis %d %s\n", a, c->axis_active(a) ? "active" : "-");
+	}
 	if (o->listDips && c->describe)
 		fputs(c->describe(), stdout);
 	uint8_t held[64] = {0};
@@ -183,6 +204,12 @@ static int gate_run(const struct gate_core *c, const struct gate_opts *o)
 				if (o->press[p].index == i && f >= o->press[p].first && f < o->press[p].first + o->press[p].count)
 					on = 1;
 			c->set_button(i, on);
+		}
+		for (int a = 0; a < o->axes; a++)
+		{
+			const long first = o->axis[a].first, n = o->axis[a].count;
+			if (f == first) c->set_axis(o->axis[a].index, o->axis[a].value);
+			if (f == first + n) c->set_axis(o->axis[a].index, 0);
 		}
 		c->frame();
 		if (!c->input_was_read()) lag++;
