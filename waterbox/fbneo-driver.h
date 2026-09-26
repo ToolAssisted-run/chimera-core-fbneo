@@ -39,6 +39,9 @@ int fbneo_input_was_read(void);
 // the picture: BGRA, top-down, w x h
 const uint32_t* fbneo_video(int* w, int* h);
 int fbneo_video_max(int* w, int* h);   // the largest a frame can be
+// The picture's display aspect as the driver gives it - of the upright
+// picture, so 3:4 for a game whose monitor stood on its side. 0: unknown.
+int fbneo_display_aspect(int* x, int* y);
 // this frame's sound: interleaved stereo s16 at fbneo_audio_rate()
 const int16_t* fbneo_audio(int* frames);
 int fbneo_audio_rate(void);

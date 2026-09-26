@@ -124,11 +124,20 @@ decided with the user:
   aims the soldier and scores 1600 by frame 1500 where the still run scores
   0; native == sandbox == rerecord (gate).
 
+## Vertical games (2026-09-26)
+
+A vertical driver declares the UPRIGHT picture as its visible size (Varth:
+224x384, aspect 3:4) but draws the board's landscape scan, whose size is
+BurnDrvGetFullSize (384x224). The frame used the visible size for the draw
+buffer's pitch, so FBNeo's 384-pixel rows landed 224 apart - a sliced
+picture. Drawing at the full size, then turning a quarter anticlockwise,
+gives Varth upright (checked by eye: the pod-select text reads, the plane
+flies up the screen). The display aspect goes to Chimera through
+GetDisplayAspectX/Y (chimera: ce_session_display_aspect), since a machine's
+declared 4:3 cannot know a game stands on its side. 1944 is horizontal
+(FBNeo does not flag it), which is how the first try at this missed.
+
 ## Open
 
-- **Vertical games are untried.** 1944 turned out to be a horizontal game
-  (384x224, not flagged vertical); FBNeo's vertical parents here are 1941,
-  Mercs and Varth (CPS-1), 19XX and Dimahoo (CPS-2).
-- Only one game per system has been run (two on CPS-1 and CPS-2), and no
-  vertical game: which way one is turned upright (fbneo_frame) is
-  unverified.
+- Few games per system have been run: CPS-1 Magic Sword, Forgotten Worlds,
+  Varth; CPS-2 SSF2T, 1944; one each on CPS-3, Neo Geo, System 16.

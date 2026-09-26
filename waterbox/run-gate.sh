@@ -342,6 +342,39 @@ else
 	report SKIP "cps1: analog legs" "no forgottn.zip in $roms"
 fi
 
+# a vertical game: Varth's monitor stood on its side. FBNeo draws the board's
+# landscape scan; the picture handed out must be upright (224x384), the same
+# in both flavors, and the engine must be told 3:4 where a landscape game
+# says 4:3.
+if [ -f "$roms/varth.zip" ]; then
+	workdir "$work/vertical" cps1 varth.zip
+	"$native" "$work/vertical" --frames 1500 --report 50 --press 11:900:6 --press 10:1000:6 > "$work/vertical.n" 2>/dev/null || true
+	"$wbxrun" "$core" "$work/vertical" --frames 1500 --report 50 --press 11:900:6 --press 10:1000:6 > "$work/vertical.w" 2>/dev/null || true
+	size="$(tail -1 "$work/vertical.n" | awk '{print $6}')"
+	if [ "$size" = 224x384 ] && cmp -s "$work/vertical.n" "$work/vertical.w"; then
+		report PASS "cps1: a vertical game is handed out upright" "Varth 224x384, native == sandbox"
+	else
+		report FAIL "cps1: a vertical game is handed out upright" "size $size"
+	fi
+	if [ -x "$run" ] && [ -f "$pkg" ]; then
+		python3 -c "import sys; open(sys.argv[1],'w').write(('|...|'+'.'*12+'|'+'.'*12+'|\n')*30)" "$work/vertical.movie"
+		"$run" "$pkg" "$roms/varth.zip" "$work/vertical.movie" --settings '{"machine":"cps1"}' --meta "$work/vertical.meta" > /dev/null 2>&1 || true
+		v="$(grep '^aspect=' "$work/vertical.meta" 2>/dev/null)"
+		l=""
+		if [ -f "$roms/msword.zip" ]; then
+			"$run" "$pkg" "$roms/msword.zip" "$work/vertical.movie" --settings '{"machine":"cps1"}' --meta "$work/landscape.meta" > /dev/null 2>&1 || true
+			l="$(grep '^aspect=' "$work/landscape.meta" 2>/dev/null)"
+		fi
+		if [ "$v" = "aspect=3:4" ] && { [ -z "$l" ] || [ "$l" = "aspect=4:3" ]; }; then
+			report PASS "cps1: the engine is told a vertical game's aspect" "Varth 3:4${l:+, Magic Sword 4:3}"
+		else
+			report FAIL "cps1: the engine is told a vertical game's aspect" "varth '$v', msword '$l'"
+		fi
+	fi
+else
+	report SKIP "cps1: vertical legs" "no varth.zip in $roms"
+fi
+
 # the game's own settings, as the engine asks for them before a project exists
 if [ -x "$run" ] && [ -f "$pkg" ] && [ -f "$roms/msword.zip" ]; then
 	"$run" "$pkg" "$roms/msword.zip" --suggest --settings '{"machine":"cps1"}' > "$work/suggest.json" 2>&1 || true

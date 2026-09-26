@@ -648,8 +648,12 @@ void fbneo_frame(void)
 {
   if (!s_running)
     return;
+  // What FBNeo draws is the board's own scan, landscape even for a game whose
+  // monitor stood on its side: its FULL size (the visible size a vertical
+  // driver declares is the upright picture, width and height swapped). Both
+  // follow a driver that changes its size (CPS-3's 496-pixel mode).
   INT32 w = 0, h = 0;
-  BurnDrvGetVisibleSize(&w, &h);
+  BurnDrvGetFullSize(&w, &h);
   if (size_t(w) * h > s_draw.size())
   {
     s_draw.assign(size_t(w) * h, 0);
@@ -714,6 +718,19 @@ const uint32_t* fbneo_video(int* w, int* h)
   *w = s_video_w;
   *h = s_video_h;
   return s_video.data();
+}
+
+int fbneo_display_aspect(int* x, int* y)
+{
+  if (!s_running)
+    return 0;
+  INT32 ax = 0, ay = 0;
+  BurnDrvGetAspect(&ax, &ay);
+  if (ax <= 0 || ay <= 0)
+    return 0;
+  *x = ax;
+  *y = ay;
+  return 1;
 }
 
 int fbneo_video_max(int* w, int* h)

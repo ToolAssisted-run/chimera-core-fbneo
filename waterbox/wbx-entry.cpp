@@ -266,6 +266,20 @@ ECL_EXPORT int GetVideoHeight(void)
 	return h;
 }
 
+/* The display aspect of the picture handed out (Chimera's
+ * ce_session_display_aspect): 4:3 for most, 3:4 for a vertical game - which a
+ * per-machine virtual size cannot know. */
+ECL_EXPORT int GetDisplayAspectX(void)
+{
+	int x = 0, y = 0;
+	return fbneo_display_aspect(&x, &y) ? x : 0;
+}
+ECL_EXPORT int GetDisplayAspectY(void)
+{
+	int x = 0, y = 0;
+	return fbneo_display_aspect(&x, &y) ? y : 0;
+}
+
 ECL_EXPORT int16_t *GetAudio(void)
 {
 	int n;
