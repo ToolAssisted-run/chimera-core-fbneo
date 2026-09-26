@@ -1,0 +1,30 @@
+{
+  "package": "fbneo",
+  "effectiveTerms": "FB Neo licence (non-commercial; MAME licence for its MAME-derived code)",
+  "commercialUse": "prohibited",
+  "note": "The built core combines this repository's integration (MIT) with FinalBurn Neo, whose own licence (src/license.txt) forbids selling it or seeking money from it, asks that changes to its source be made public, and forbids asking for donations for a project that uses its source. Parts of FBNeo come from MAME and are also under MAME's licence. zlib is FBNeo's own bundled copy (zlib licence). The package carries no rom: every game's rom set and the Neo Geo's bios set are the project's, supplied by the user.",
+  "components": [
+    {
+      "name": "chimera-core-fbneo (integration)",
+      "license": "MIT",
+      "url": "https://github.com/ToolAssisted-run/chimera-core-fbneo",
+      "commit": "{selfCommit}",
+      "file": "LICENSE",
+      "sourceUrl": "https://github.com/ToolAssisted-run/chimera-core-fbneo/archive/{commit}.tar.gz"
+    },
+    {
+      "name": "FinalBurn Neo",
+      "license": "FB Neo licence (custom, non-commercial) and the MAME licence",
+      "url": "https://github.com/finalburnneo/FBNeo",
+      "commit": "{submodule:extern/FBNeo}",
+      "file": "extern/FBNeo/src/license.txt",
+      "sourceUrl": "https://github.com/finalburnneo/FBNeo/archive/{commit}.tar.gz"
+    },
+    {
+      "name": "zlib (bundled by FBNeo)",
+      "license": "Zlib",
+      "url": "https://zlib.net",
+      "file": "extern/FBNeo/src/dep/libs/zlib/zlib.h"
+    }
+  ]
+}

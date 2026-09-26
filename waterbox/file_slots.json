@@ -1,0 +1,15 @@
+{
+  "_comment": "The rom sets a project takes. Slot ids are what project manifests record.",
+  "slots": [
+    {
+      "id": "romset",
+      "title": "Rom set",
+      "min": 1,
+      "max": 4,
+      "formats": [
+        "zip"
+      ],
+      "help": "The game's FBNeo rom set first, named as FBNeo names it (ssf2t.zip) - the name is how the core knows the game. A clone's set holds only what differs from its parent, so add the parent's set after it (a clone of ssf2t needs ssf2t.zip too). Every rom is found by its CRC, then its name."
+    }
+  ]
+}

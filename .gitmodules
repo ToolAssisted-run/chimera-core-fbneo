@@ -1,0 +1,3 @@
+[submodule "extern/FBNeo"]
+	path = extern/FBNeo
+	url = https://github.com/finalburnneo/FBNeo.git
