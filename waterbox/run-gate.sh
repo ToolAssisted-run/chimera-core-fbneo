@@ -82,8 +82,7 @@ fi
 # The declarations are what gen-config.py writes: nobody hand-edits one of the
 # three files and leaves the generator (and the panel it mirrors) behind.
 mkdir -p "$work/gen"
-cp "$here/gen-config.py" "$work/gen/"
-python3 "$work/gen/gen-config.py"
+python3 "$here/gen-config.py" "$work/gen"
 drift=""
 for f in waterbox.config file_slots.json default_keybinds.json; do
 	cmp -s "$work/gen/$f" "$here/$f" || drift="$drift $f"
@@ -227,6 +226,102 @@ PY
 		report SKIP "$sys: runs in the engine" "no chimera-run or package"
 	fi
 done
+
+# ------------------------------------------------ 3. settings, lag, saves
+# A setting run: <workdir> <settings json> [run options] -> the last report line
+setrun() {
+	d="$1"; cp "$d/settings" "$d/settings.keep"
+	printf '%s' "$2" > "$d/settings"; shift 2
+	"$wbxrun" "$core" "$d" --frames 1500 --report 1500 "$@" 2>&1 | tail -1
+	mv "$d/settings.keep" "$d/settings"
+}
+field() { echo "$1" | awk -v f="$2" '{for (i=1;i<=NF;i++) if ($i==f) {print $(i+1); exit}}'; }
+
+# lag: counted, never every frame and never none (a game that polls nothing,
+# or a flag nobody sets, reads as all lag)
+for sys in cps1 cps2 cps3 system16 neogeo; do
+	[ -f "$work/$sys.w" ] || continue
+	lag="$(tail -1 "$work/$sys.w" | awk '{print $NF}')"
+	if [ -n "$lag" ] && [ "$lag" -gt 0 ] && [ "$lag" -lt 1200 ]; then
+		report PASS "$sys: lag frames are counted" "$lag of 1200"
+	else
+		report FAIL "$sys: lag frames are counted" "lag=$lag of 1200"
+	fi
+done
+
+if [ -d "$work/system16" ]; then
+	base="$(setrun "$work/system16" '{"machine":"system16"}')"
+	lives="$(setrun "$work/system16" '{"machine":"system16","dip.Lives":"5"}')"
+	if [ "$(field "$base" ram)" != "$(field "$lives" ram)" ]; then
+		report PASS "system16: a dip switch is part of the machine" "Lives = 5"
+	else
+		report FAIL "system16: a dip switch is part of the machine" "Lives = 5 changed nothing"
+	fi
+	bogus="$(setrun "$work/system16" '{"machine":"system16","dip.Lives":"99"}')"
+	case "$bogus" in
+		*"is not one"*) report PASS "system16: a switch the game lacks is refused" ;;
+		*) report FAIL "system16: a switch the game lacks is refused" "$bogus" ;;
+	esac
+fi
+if [ -d "$work/neogeo" ]; then
+	base="$(setrun "$work/neogeo" '{"machine":"neogeo"}' --exercise)"
+	usa="$(setrun "$work/neogeo" '{"machine":"neogeo","neogeo_bios":"MVS USA ver. 5 (2 slot)"}' --exercise)"
+	[ "$(field "$base" ram)" != "$(field "$usa" ram)" ] \
+		&& report PASS "neogeo: the bios setting is part of the machine" "MVS USA ver. 5" \
+		|| report FAIL "neogeo: the bios setting is part of the machine"
+	hz="$(setrun "$work/neogeo" '{"machine":"neogeo","force_60hz":true}' --exercise)"
+	[ "$(field "$base" aud)" = 811 ] && [ "$(field "$hz" aud)" = 800 ] \
+		&& report PASS "neogeo: Force 60 Hz runs the board at 60" "811 -> 800 samples a frame" \
+		|| report FAIL "neogeo: Force 60 Hz runs the board at 60" "$(field "$base" aud) -> $(field "$hz" aud)"
+	fm="$(setrun "$work/neogeo" '{"machine":"neogeo","fm_interpolation":"4-point"}' --exercise)"
+	[ "$(field "$base" ram)" = "$(field "$fm" ram)" ] && [ "$(field "$base" aud)" = "$(field "$fm" aud)" ] \
+		&& [ "$(echo "$base" | awk '{print $10}')" != "$(echo "$fm" | awk '{print $10}')" ] \
+		&& report PASS "neogeo: interpolation is sound only" "same machine, other sound" \
+		|| report FAIL "neogeo: interpolation is sound only"
+	# P1 Left (2) and Right (3) held together
+	lr="--exercise --press 2:1300:200 --press 3:1300:200"
+	# shellcheck disable=SC2086
+	socd3="$(setrun "$work/neogeo" '{"machine":"neogeo"}' $lr)"
+	# shellcheck disable=SC2086
+	socd0="$(setrun "$work/neogeo" '{"machine":"neogeo","socd":"off"}' $lr)"
+	[ "$(field "$socd3" ram)" != "$(field "$socd0" ram)" ] \
+		&& report PASS "neogeo: opposite directions are a setting" "Left+Right, off vs last-input" \
+		|| report FAIL "neogeo: opposite directions are a setting"
+
+	# save data: exported after a run, brought back, the same bytes at frame 0
+	mkdir -p "$work/save1" "$work/save2" "$work/neosave"
+	"$wbxrun" "$core" "$work/neogeo" --frames 1500 --report 1500 --exercise --savedata-out "$work/save1" > /dev/null 2>&1 || true
+	workdir "$work/neosave" neogeo samsho4.zip neogeo.zip
+	cp "$work/save1"/*.bin "$work/neosave/" 2>/dev/null || true
+	printf '{"romset":["samsho4.zip"],"savedata":["NVRAM.bin","Memory_card.bin"]}' > "$work/neosave/slots"
+	"$wbxrun" "$core" "$work/neosave" --frames 0 --savedata-out "$work/save2" > /dev/null 2>&1 || true
+	fresh="$("$wbxrun" "$core" "$work/neogeo" --frames 60 --report 60 2>/dev/null | tail -1)"
+	brought="$("$wbxrun" "$core" "$work/neosave" --frames 60 --report 60 2>/dev/null | tail -1)"
+	if [ -s "$work/save1/NVRAM.bin" ] && cmp -s "$work/save1/NVRAM.bin" "$work/save2/NVRAM.bin" \
+		&& [ "$(field "$fresh" ram)" != "$(field "$brought" ram)" ]; then
+		report PASS "neogeo: save data exports and comes back" "NVRAM.bin, Memory_card.bin"
+	else
+		report FAIL "neogeo: save data exports and comes back"
+	fi
+fi
+if [ -d "$work/cps2" ]; then
+	base="$(setrun "$work/cps2" '{"machine":"cps2"}')"
+	fast="$(setrun "$work/cps2" '{"machine":"cps2","cpu_clock":200}')"
+	[ "$(field "$base" ram)" != "$(field "$fast" ram)" ] \
+		&& report PASS "cps2: the CPU clock is part of the machine" "200%" \
+		|| report FAIL "cps2: the CPU clock is part of the machine"
+fi
+
+# the game's own settings, as the engine asks for them before a project exists
+if [ -x "$run" ] && [ -f "$pkg" ] && [ -f "$roms/msword.zip" ]; then
+	"$run" "$pkg" "$roms/msword.zip" --suggest --settings '{"machine":"cps1"}' > "$work/suggest.json" 2>&1 || true
+	n="$(python3 -c "import json,sys; t=open(sys.argv[1]).read(); print(len(json.loads(t[t.index('{'):])['settings']))" "$work/suggest.json" 2>/dev/null || echo 0)"
+	if [ "$n" -gt 0 ]; then
+		report PASS "cps1: a game declares its own settings" "$n dip switch groups (Magic Sword)"
+	else
+		report FAIL "cps1: a game declares its own settings" "see build/gate/suggest.json"
+	fi
+fi
 
 # The Neo Geo's bios set is firmware: without it the load error says so.
 if [ -f "$roms/samsho4.zip" ]; then

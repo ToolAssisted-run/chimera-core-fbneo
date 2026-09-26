@@ -10,6 +10,16 @@
         "zip"
       ],
       "help": "The game's FBNeo rom set first, named as FBNeo names it (ssf2t.zip) - the name is how the core knows the game. A clone's set holds only what differs from its parent, so add the parent's set after it (a clone of ssf2t needs ssf2t.zip too). Every rom is found by its CRC, then its name."
+    },
+    {
+      "id": "savedata",
+      "title": "Save data",
+      "min": 0,
+      "max": 8,
+      "formats": [
+        "bin"
+      ],
+      "help": "What a game keeps across power cycles, as Export Save Data wrote it: the Neo Geo's NVRAM.bin and Memory_card.bin, a CPS-2 or CPS-3 EEPROM. Each file goes back into the part of the machine it came from before the first frame."
     }
   ]
 }

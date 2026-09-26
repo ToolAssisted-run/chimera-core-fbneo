@@ -21,7 +21,20 @@ extern void SetButton(int32_t index, int32_t state);
 extern int IsButtonActive(int32_t index);
 extern const char *GetButtonName(int32_t index);
 extern int GetButtonCount(void);
+extern const char *DescribeDips(void);
+extern int32_t GetSaveDataFileCount(void);
+extern const char *GetSaveDataFileName(int32_t i);
+extern int64_t GetSaveDataFileSize(int32_t i);
+extern const uint8_t *GetSaveDataFileBuffer(int32_t i);
+static int save_count(void) { return GetSaveDataFileCount(); }
+static const char *save_name(int i) { return GetSaveDataFileName(i); }
+static int64_t save_size(int i) { return GetSaveDataFileSize(i); }
+static const uint8_t *save_data(int i) { return GetSaveDataFileBuffer(i); }
 extern void FrameAdvance(uint64_t packed);
+extern int InputWasRead(void);
+extern int IsAxisActive(int32_t index);
+extern void SetAxis(int32_t index, int32_t value);
+extern int GetAxisCount(void);
 extern uint32_t *GetVideoBgra(void);
 extern int GetVideoWidth(void);
 extern int GetVideoHeight(void);
@@ -68,7 +81,12 @@ int main(int argc, char **argv)
 		.button_count = GetButtonCount,
 		.button_active = IsButtonActive,
 		.button_name = GetButtonName,
+		.describe = DescribeDips,
 		.frame = frame,
+		.input_was_read = InputWasRead,
+		.axis_count = GetAxisCount,
+		.axis_active = IsAxisActive,
+		.set_axis = SetAxis,
 		.video = video,
 		.audio = audio,
 		.domain_count = GetMemoryDomainCount,
@@ -76,6 +94,10 @@ int main(int argc, char **argv)
 		.domain_ptr = domain_ptr,
 		.domain_size = GetMemoryDomainSize,
 		.pre_frame = NULL,
+		.save_count = save_count,
+		.save_name = save_name,
+		.save_size = save_size,
+		.save_data = save_data,
 	};
 	return gate_run(&c, &o);
 }

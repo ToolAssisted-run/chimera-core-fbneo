@@ -10,8 +10,10 @@
  *          --exercise          a deterministic wander over the active
  *                              player controls (never Reset/Test/Service)
  *          --list-panel        print the panel, and which controls are live
+ *          --list-dips         print the game's dip switches and their values
  *          --dump-domain NAME FILE   write a memory domain after the run
  *          --vid-out FILE      the last picture: "W H\n" then BGRA rows
+ *          --savedata-out DIR  the game's save data after the run, a file each
  * SPDX-License-Identifier: MIT
  */
 #ifndef GATE_HARNESS_H
@@ -31,7 +33,12 @@ struct gate_core
 	int (*button_count)(void);
 	int (*button_active)(int32_t index);
 	const char *(*button_name)(int32_t index);
+	const char *(*describe)(void);   /* the game's dip switches, one per line */
 	void (*frame)(void);
+	int (*input_was_read)(void);
+	int (*axis_count)(void);
+	int (*axis_active)(int32_t index);
+	void (*set_axis)(int32_t index, int32_t value);
 	const uint32_t *(*video)(int *w, int *h);
 	const int16_t *(*audio)(int *n);
 	int (*domain_count)(void);
@@ -39,6 +46,10 @@ struct gate_core
 	const uint8_t *(*domain_ptr)(int i);
 	int64_t (*domain_size)(int i);
 	void (*pre_frame)(void); /* run-wbx's rerecord / session hook, or NULL */
+	int (*save_count)(void);
+	const char *(*save_name)(int i);
+	int64_t (*save_size)(int i);
+	const uint8_t *(*save_data)(int i);
 };
 
 #define GATE_MAX_PRESS 32
@@ -50,8 +61,10 @@ struct gate_opts
 	struct { int index; long first, count; } press[GATE_MAX_PRESS];
 	int exercise;
 	int listPanel;
+	int listDips;
 	const char *dumpDomain, *dumpPath;
 	const char *vidOut;
+	const char *savedataOut;
 };
 
 static uint64_t gate_fnv(uint64_t h, const void *p, size_t n)
@@ -86,8 +99,10 @@ static int gate_parse_opts(int argc, char **argv, int first, struct gate_opts *o
 		}
 		else if (!strcmp(argv[i], "--exercise")) o->exercise = 1;
 		else if (!strcmp(argv[i], "--list-panel")) o->listPanel = 1;
+		else if (!strcmp(argv[i], "--list-dips")) o->listDips = 1;
 		else if (!strcmp(argv[i], "--dump-domain") && i + 2 < argc) { o->dumpDomain = argv[++i]; o->dumpPath = argv[++i]; }
 		else if (!strcmp(argv[i], "--vid-out") && i + 1 < argc) o->vidOut = argv[++i];
+		else if (!strcmp(argv[i], "--savedata-out") && i + 1 < argc) o->savedataOut = argv[++i];
 		else if (!strcmp(argv[i], "--rerecord") || !strcmp(argv[i], "--session")) ; /* run-wbx's */
 		else
 		{
@@ -147,11 +162,20 @@ static int gate_run(const struct gate_core *c, const struct gate_opts *o)
 	if (o->listPanel)
 		for (int i = 0; i < count; i++)
 			printf("panel %d '%s' %s\n", i, c->button_name(i), c->button_active(i) ? "active" : "-");
+	if (o->listDips && c->describe)
+		fputs(c->describe(), stdout);
 	uint8_t held[64] = {0};
+	long lag = 0;
 	for (long f = 1; f <= o->frames; f++)
 	{
 		if (c->pre_frame) c->pre_frame();
 		if (o->exercise) gate_exercise(c, f, held);
+		/* the exercise moves every live axis too: a slow sweep, the same in
+		 * both flavors */
+		if (o->exercise)
+			for (int a = 0; a < c->axis_count(); a++)
+				if (c->axis_active(a))
+					c->set_axis(a, (int32_t)((f * 37 + a * 311) % 2048) - 1024);
 		for (int i = 0; i < count && i < 64; i++)
 		{
 			int on = held[i];
@@ -161,14 +185,15 @@ static int gate_run(const struct gate_core *c, const struct gate_opts *o)
 			c->set_button(i, on);
 		}
 		c->frame();
+		if (!c->input_was_read()) lag++;
 		if (f % o->report == 0 || f == o->frames)
 		{
 			int w, h, n;
 			const uint32_t *v = c->video(&w, &h);
 			const int16_t *a = c->audio(&n);
-			printf("frame %5ld ram %016" PRIx64 " vid %dx%d %016" PRIx64 " aud %d %016" PRIx64 "\n", f,
+			printf("frame %5ld ram %016" PRIx64 " vid %dx%d %016" PRIx64 " aud %d %016" PRIx64 " lag %ld\n", f,
 			       gate_ram_hash(c), w, h, gate_fnv(0, v, (size_t)w * h * 4), n,
-			       gate_fnv(0, a, (size_t)n * 4));
+			       gate_fnv(0, a, (size_t)n * 4), lag);
 			fflush(stdout);
 		}
 	}
@@ -184,6 +209,14 @@ static int gate_run(const struct gate_core *c, const struct gate_opts *o)
 			}
 		if (!found) { fprintf(stderr, "no memory domain '%s'\n", o->dumpDomain); return 1; }
 	}
+	if (o->savedataOut)
+		for (int i = 0; i < c->save_count(); i++)
+		{
+			char path[1024];
+			snprintf(path, sizeof path, "%s/%s", o->savedataOut, c->save_name(i));
+			FILE *f = fopen(path, "wb");
+			if (f) { fwrite(c->save_data(i), 1, (size_t)c->save_size(i), f); fclose(f); }
+		}
 	if (o->vidOut)
 	{
 		int w, h;

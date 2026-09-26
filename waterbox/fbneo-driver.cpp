@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <cctype>
 #include <cstring>
 #include <ctime>
 #include <memory>
@@ -16,6 +18,7 @@
 
 #include "burnint.h"
 #include "state.h"
+#include "joyprocess.h"
 #include "zip-reader.h"
 
 // ---- what FBNeo expects its frontend to provide ----------------------------
@@ -64,15 +67,26 @@ static const int kAudioRate = 48000;
 static std::vector<int16_t> s_audio;
 static int s_audio_frames;
 
+// the project's settings (fbneo_set_option / fbneo_want_dip)
+static int s_cpu_clock = 100;
+static bool s_force_60hz;
+static int s_pcm_interp = 1, s_fm_interp = 0;   // FBNeo's defaults
+static int s_socd = 3;                          // FBNeo's default: last input priority, 8-way
+static std::vector<std::pair<std::string, std::string>> s_want_dips;
+static bool s_reset_first_frame;
+static bool s_input_read;   // the last frame read the game's controls (patch 0001)
+
 struct Input
 {
   std::string name;
   UINT8 type;
   UINT8* val;
+  UINT16* sval;   // an analog input's value
 };
 static std::vector<Input> s_inputs;
 extern "C" {
 static void ListDomains();
+static void ListSaves();
 }
 
 // ---- rom loading -----------------------------------------------------------
@@ -196,6 +210,42 @@ static std::vector<std::string> PanelNames(const std::string& machine)
 // panel index -> the game's input index (-1: the game has no such control)
 static std::vector<int> s_bound;
 
+// The analog controls: two axes per player, "P1 Axis 1", "P1 Axis 2", bound
+// by position to the player's analog inputs as the driver lists them (a dial,
+// a trackball's X and Y, a paddle). FBNeo's scale: -1024..1023, 0 at rest - a
+// relative control (dial, trackball, paddle) takes it as this frame's speed,
+// an absolute one as a position.
+static const int kAxesPerPlayer = 2;
+static std::vector<int> s_axis_bound;
+
+static int AxisCount(const std::string& machine)
+{
+  for (const auto& sh : kShapes)
+    if (machine == sh.machine)
+      return sh.players * kAxesPerPlayer;
+  return 0;
+}
+
+static void BindAxes(const std::string& machine)
+{
+  s_axis_bound.assign(size_t(AxisCount(machine)), -1);
+  for (size_t a = 0; a < s_axis_bound.size(); a++)
+  {
+    const std::string P = "P" + std::to_string(a / kAxesPerPlayer + 1) + " ";
+    int nth = int(a % kAxesPerPlayer);
+    for (size_t i = 0; i < s_inputs.size(); i++)
+    {
+      const auto& in = s_inputs[i];
+      if ((in.type & BIT_GROUP_ANALOG) && in.type != BIT_DIPSWITCH && in.sval &&
+          in.name.compare(0, P.size(), P) == 0 && nth-- == 0)
+      {
+        s_axis_bound[a] = int(i);
+        break;
+      }
+    }
+  }
+}
+
 static bool IsPlayerFixed(const std::string& rest)
 {
   for (const char* f : {"Up", "Down", "Left", "Right", "Start", "Coin", "Select"})
@@ -253,6 +303,97 @@ static void BindPanel(const std::string& machine)
   s_bound[at++] = first({"Reset"});
 }
 
+// ---- dip switches ----------------------------------------------------------
+
+// A driver's dip list: a group entry {0, 0xFE (0xFD: hidden), 0, n, "Name"}
+// and then its n options, each {input, flags, mask, value, "Option"} and
+// taking (flags & 0x0F) entries - the extra ones are conditions on other
+// switches. Inputs count from the list's 0xF0 offset entry. The defaults are
+// the 0xFF entries, one per switch byte.
+struct DipOption
+{
+  std::string name;
+  int input;
+  UINT8 mask, value;
+};
+struct DipGroup
+{
+  std::string name;
+  std::vector<DipOption> options;
+  int def = -1;
+};
+static std::vector<DipGroup> s_dips;
+static INT32 s_dip_offset;
+
+static UINT8* DipByte(int input)
+{
+  const size_t at = size_t(input + s_dip_offset);
+  return at < s_inputs.size() ? s_inputs[at].val : nullptr;
+}
+
+static void ListDips()
+{
+  s_dips.clear();
+  s_dip_offset = 0;
+  BurnDIPInfo bdi{};
+  std::vector<BurnDIPInfo> all;
+  for (UINT32 i = 0; BurnDrvGetDIPInfo(&bdi, i) == 0; i++)
+    all.push_back(bdi);
+  std::vector<std::pair<int, UINT8>> defaults;   // input -> default byte
+  for (const auto& d : all)
+  {
+    if (d.nFlags == 0xF0)
+      s_dip_offset = d.nInput;
+    if (d.nFlags == 0xFF)
+      defaults.push_back({d.nInput, d.nSetting});
+  }
+  for (size_t i = 0; i < all.size(); i++)
+  {
+    if (all[i].nFlags != 0xFE && all[i].nFlags != 0xFD)
+      continue;
+    DipGroup g;
+    g.name = all[i].szText ? all[i].szText : "";
+    size_t j = i + 1;
+    for (int n = 0; n < all[i].nSetting && j < all.size(); n++)
+    {
+      const auto& o = all[j];
+      g.options.push_back({o.szText ? o.szText : "", o.nInput, o.nMask, o.nSetting});
+      j += std::max<size_t>(1, o.nFlags & 0x0F);
+    }
+    for (size_t k = 0; k < g.options.size() && g.def < 0; k++)
+      for (const auto& d : defaults)
+        if (d.first == g.options[k].input && (d.second & g.options[k].mask) == g.options[k].value)
+        {
+          g.def = int(k);
+          break;
+        }
+    // two options of a group may share a name (CPS-3's "Asia"); a setting's
+    // options must not
+    for (size_t a = 0; a < g.options.size(); a++)
+    {
+      int n = 1;
+      for (size_t b = 0; b < a; b++)
+        if (g.options[b].name == g.options[a].name)
+          n++;
+      if (n > 1)
+        g.options[a].name += " #" + std::to_string(n);
+    }
+    if (!g.name.empty() && !g.options.empty())
+      s_dips.push_back(std::move(g));
+    i = j - 1;
+  }
+  // and two groups may (the Neo Geo's two "Coin chutes"); settings must not
+  for (size_t a = 0; a < s_dips.size(); a++)
+  {
+    int n = 1;
+    for (size_t b = 0; b < a; b++)
+      if (s_dips[b].name == s_dips[a].name)
+        n++;
+    if (n > 1)
+      s_dips[a].name += " #" + std::to_string(n);
+  }
+}
+
 // ---- the calls -------------------------------------------------------------
 
 extern "C" {
@@ -260,6 +401,49 @@ extern "C" {
 void fbneo_set_machine(const char* machine)
 {
   s_machine = machine ? machine : "";
+}
+
+int fbneo_set_option(const char* name, const char* value)
+{
+  if (!name || !value)
+    return 0;
+  const std::string n = name, v = value;
+  auto interp = [&](int& to) {
+    if (v == "none") return to = 0, 1;
+    if (v == "2-point") return to = 1, 1;
+    if (v == "4-point") return to = 3, 1;
+    return 0;
+  };
+  if (n == "cpu_clock")
+  {
+    const int pct = atoi(value);
+    return pct >= 25 && pct <= 400 ? (s_cpu_clock = pct, 1) : 0;
+  }
+  if (n == "force_60hz")
+    return v == "true" || v == "1" ? (s_force_60hz = true, 1) :
+           v == "false" || v == "0" ? (s_force_60hz = false, 1) : 0;
+  if (n == "pcm_interpolation")
+    return interp(s_pcm_interp);
+  if (n == "fm_interpolation")
+    return interp(s_fm_interp);
+  if (n == "socd")
+  {
+    // FBNeo's modes, in its own order (devices/joyprocess.h)
+    static const char* const kModes[] = {"off",        "neutral",      "last-input-4way",
+                                         "last-input-8way", "first-input", "up-priority",
+                                         "down-priority"};
+    for (int i = 0; i < 7; i++)
+      if (v == kModes[i])
+        return s_socd = i, 1;
+    return 0;
+  }
+  return 0;
+}
+
+void fbneo_want_dip(const char* group, const char* option)
+{
+  if (group && option && *option)
+    s_want_dips.emplace_back(group, option);
 }
 
 void fbneo_add_archive(const char* path)
@@ -303,10 +487,10 @@ static const char* DisplayName(const std::string& system)
   return system.c_str();
 }
 
-int fbneo_init(const char* game_archive)
+// "roms/SSF2T.zip" -> "ssf2t": the driver a rom set is named after
+static std::string DriverNameOf(const char* archive)
 {
-  s_error.clear();
-  std::string base = game_archive ? game_archive : "";
+  std::string base = archive ? archive : "";
   const size_t slash = base.find_last_of("/\\");
   if (slash != std::string::npos)
     base = base.substr(slash + 1);
@@ -315,6 +499,32 @@ int fbneo_init(const char* game_archive)
     base = base.substr(0, dot);
   for (auto& c : base)
     c = char(tolower(c));
+  return base;
+}
+
+// Makes the named driver the active one, without starting it
+static bool SelectDriver(const std::string& name)
+{
+  static bool lib;
+  if (!lib)
+  {
+    BurnLibInit();
+    lib = true;
+  }
+  for (UINT32 i = 0; i < nBurnDrvCount; i++)
+  {
+    nBurnDrvActive = i;
+    const char* n = BurnDrvGetTextA(DRV_NAME);
+    if (n && name == n)
+      return true;
+  }
+  return false;
+}
+
+int fbneo_init(const char* game_archive)
+{
+  s_error.clear();
+  const std::string base = DriverNameOf(game_archive);
 
   // the game's own archive is always searched first
   fbneo_add_archive(game_archive);
@@ -325,25 +535,12 @@ int fbneo_init(const char* game_archive)
   }
   std::rotate(s_archives.begin(), s_archives.end() - 1, s_archives.end());
 
-  BurnLibInit();
-  UINT32 found = ~0u;
-  for (UINT32 i = 0; i < nBurnDrvCount; i++)
-  {
-    nBurnDrvActive = i;
-    const char* name = BurnDrvGetTextA(DRV_NAME);
-    if (name && base == name)
-    {
-      found = i;
-      break;
-    }
-  }
-  if (found == ~0u)
+  if (!SelectDriver(base))
   {
     s_error = "no CPS-1, CPS-2, CPS-3, Neo Geo or System 16 game is called '" + base +
               "' - the rom set must keep FBNeo's name for it (" + base + ".zip)";
     return 0;
   }
-  nBurnDrvActive = found;
   const std::string system = SystemOf(BurnDrvGetHardwareCode());
   if (!s_machine.empty() && system != s_machine)
   {
@@ -368,6 +565,13 @@ int fbneo_init(const char* game_archive)
 
   // the sound: a fixed rate; FBNeo makes nBurnSoundLen samples a frame
   nBurnSoundRate = kAudioRate;
+  // the project's board settings, which the driver reads while it starts
+  nBurnCPUSpeedAdjust = s_cpu_clock * 256 / 100;
+  bForce60Hz = s_force_60hz;
+  nInterpolation = s_pcm_interp;
+  nFMInterpolation = s_fm_interp;
+  for (auto& v : nSocd)
+    v = s_socd;
 
   BurnExtLoadRom = LoadRom;
   if (BurnDrvInit() != 0)
@@ -387,7 +591,7 @@ int fbneo_init(const char* game_archive)
   BurnInputInfo bii{};
   for (UINT32 i = 0; BurnDrvGetInputInfo(&bii, i) == 0; i++)
   {
-    s_inputs.push_back({bii.szName ? bii.szName : "", bii.nType, bii.pVal});
+    s_inputs.push_back({bii.szName ? bii.szName : "", bii.nType, bii.pVal, bii.pShortVal});
     if (bii.pVal && bii.nType == BIT_DIGITAL)
       *bii.pVal = 0;
   }
@@ -408,7 +612,28 @@ int fbneo_init(const char* game_archive)
       *s_inputs[at].val = UINT8((*s_inputs[at].val & ~bdi.nMask) | (bdi.nSetting & bdi.nMask));
   }
   BindPanel(system);
+  BindAxes(system);
   ListDomains();
+  ListDips();
+  ListSaves();
+  // The project's dip switches. A game reads most of its switches as it
+  // runs, but some only while it starts (the Neo Geo takes its bios at
+  // reset), so a machine whose switches differ from the driver's defaults is
+  // reset on its first frame - through the driver's own Reset input - and
+  // one that keeps the defaults boots exactly as FBNeo boots it.
+  for (const auto& [group, option] : s_want_dips)
+  {
+    if (!fbneo_dip_set(group.c_str(), option.c_str()))
+    {
+      s_error = "the dip switch setting '" + group + "' = '" + option + "' is not one " + base +
+                " has (its switches: " + std::to_string(s_dips.size()) + " groups)";
+      return 0;
+    }
+  }
+  s_reset_first_frame = false;
+  for (int g = 0; g < fbneo_dip_group_count(); g++)
+    if (fbneo_dip_current(g) != fbneo_dip_default(g))
+      s_reset_first_frame = true;
   return 1;
 }
 
@@ -430,10 +655,23 @@ void fbneo_frame(void)
     s_draw.assign(size_t(w) * h, 0);
     s_video.assign(size_t(w) * h, 0);
   }
+  int reset_input = -1;
+  if (s_reset_first_frame)
+  {
+    reset_input = fbneo_input_index("Reset");
+    fbneo_set_input(reset_input, 1);
+  }
   pBurnDraw = reinterpret_cast<UINT8*>(s_draw.data());
   nBurnPitch = w * s_bpp;
   pBurnSoundOut = s_audio.data();
+  nChimeraInputRead = 0;
   BurnDrvFrame();
+  s_input_read = nChimeraInputRead != 0;
+  if (s_reset_first_frame)
+  {
+    fbneo_set_input(reset_input, 0);
+    s_reset_first_frame = false;
+  }
   s_audio_frames = nBurnSoundLen;
   if (s_bpp == 2)
   {
@@ -531,6 +769,38 @@ int fbneo_input_type(int index)
   return index >= 0 && size_t(index) < s_inputs.size() ? s_inputs[size_t(index)].type : 0;
 }
 
+int fbneo_axis_count(const char* machine)
+{
+  return AxisCount(machine ? machine : "");
+}
+
+const char* fbneo_axis_name(int index)
+{
+  static std::string name;
+  name = "P" + std::to_string(index / kAxesPerPlayer + 1) + " Axis " +
+         std::to_string(index % kAxesPerPlayer + 1);
+  return name.c_str();
+}
+
+int fbneo_axis_active(int index)
+{
+  return index >= 0 && size_t(index) < s_axis_bound.size() && s_axis_bound[size_t(index)] >= 0;
+}
+
+void fbneo_axis_set(int index, int value)
+{
+  if (!fbneo_axis_active(index))
+    return;
+  if (value < -1024) value = -1024;
+  if (value > 1023) value = 1023;
+  *s_inputs[size_t(s_axis_bound[size_t(index)])].sval = UINT16(INT16(value));
+}
+
+int fbneo_input_was_read(void)
+{
+  return s_input_read ? 1 : 0;
+}
+
 int fbneo_panel_count(const char* machine)
 {
   return int(PanelNames(machine ? machine : "").size());
@@ -553,6 +823,92 @@ void fbneo_panel_set(int index, int pressed)
 {
   if (fbneo_panel_active(index))
     fbneo_set_input(s_bound[size_t(index)], pressed);
+}
+
+// a game's switches before it starts: the driver's static list
+static std::string s_described;
+static bool Describe(const char* archive)
+{
+  if (s_running)
+    return true;   // the list is the running game's
+  const std::string name = DriverNameOf(archive);
+  if (name != s_described)
+  {
+    s_dips.clear();
+    s_described = name;
+    if (!SelectDriver(name))
+      return false;
+    ListDips();
+  }
+  return true;
+}
+
+int fbneo_game_dip_group_count(const char* archive)
+{
+  return Describe(archive) ? fbneo_dip_group_count() : 0;
+}
+
+const char* fbneo_game_dip_group_name(const char* archive, int g)
+{
+  return Describe(archive) ? fbneo_dip_group_name(g) : "";
+}
+
+int fbneo_dip_group_count(void)
+{
+  return int(s_dips.size());
+}
+
+const char* fbneo_dip_group_name(int g)
+{
+  return g >= 0 && size_t(g) < s_dips.size() ? s_dips[size_t(g)].name.c_str() : "";
+}
+
+int fbneo_dip_option_count(int g)
+{
+  return g >= 0 && size_t(g) < s_dips.size() ? int(s_dips[size_t(g)].options.size()) : 0;
+}
+
+const char* fbneo_dip_option_name(int g, int o)
+{
+  if (o < 0 || o >= fbneo_dip_option_count(g))
+    return "";
+  return s_dips[size_t(g)].options[size_t(o)].name.c_str();
+}
+
+int fbneo_dip_current(int g)
+{
+  for (int o = 0; o < fbneo_dip_option_count(g); o++)
+  {
+    const auto& opt = s_dips[size_t(g)].options[size_t(o)];
+    const UINT8* b = DipByte(opt.input);
+    if (b && (*b & opt.mask) == opt.value)
+      return o;
+  }
+  return -1;
+}
+
+int fbneo_dip_default(int g)
+{
+  return g >= 0 && size_t(g) < s_dips.size() ? s_dips[size_t(g)].def : -1;
+}
+
+int fbneo_dip_set(const char* group, const char* option)
+{
+  for (auto& g : s_dips)
+  {
+    if (g.name != group)
+      continue;
+    for (const auto& o : g.options)
+      if (o.name == option)
+      {
+        UINT8* b = DipByte(o.input);
+        if (!b)
+          return 0;
+        *b = UINT8((*b & ~o.mask) | (o.value & o.mask));
+        return 1;
+      }
+  }
+  return 0;
 }
 
 const char* fbneo_game_name(void)
@@ -637,6 +993,76 @@ static void ListDomains()
     if (n > 1)
       s_domains[i].name += " #" + std::to_string(n);
   }
+}
+
+// ---- save data -------------------------------------------------------------
+// What a game keeps across power cycles: its NVRAM, a memory card, an EEPROM
+// - each area the driver declares for them, as one file named after the area.
+// ACB_EEPROM is the flag FBNeo keeps for EEPROMs outside its savestates (it
+// persists them as files of its own, which this core never reads or writes).
+
+struct SaveFile
+{
+  std::string name;
+  uint8_t* ptr;
+  int64_t size;
+};
+static std::vector<SaveFile> s_saves;
+
+static std::string SaveName(const char* area)
+{
+  std::string n = area ? area : "save";
+  for (auto& c : n)
+    if (!(isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_'))
+      c = '_';
+  return n + ".bin";
+}
+
+static INT32 __cdecl ListSave(BurnArea* pba)
+{
+  if (pba->Data && pba->nLen)
+    s_saves.push_back({SaveName(pba->szName), static_cast<uint8_t*>(pba->Data), int64_t(pba->nLen)});
+  return 0;
+}
+
+static void ListSaves()
+{
+  s_saves.clear();
+  if (!s_running)
+    return;
+  BurnAcb = ListSave;
+  BurnAreaScan(ACB_NVRAM | ACB_MEMCARD | ACB_EEPROM | ACB_READ, nullptr);
+}
+
+int fbneo_save_count(void)
+{
+  return int(s_saves.size());
+}
+
+const char* fbneo_save_name(int i)
+{
+  return i >= 0 && i < fbneo_save_count() ? s_saves[size_t(i)].name.c_str() : "";
+}
+
+const uint8_t* fbneo_save_data(int i, int64_t* size)
+{
+  if (i < 0 || i >= fbneo_save_count())
+    return nullptr;
+  *size = s_saves[size_t(i)].size;
+  return s_saves[size_t(i)].ptr;
+}
+
+int fbneo_save_load(const char* name, const uint8_t* data, int64_t size)
+{
+  for (auto& sf : s_saves)
+    if (sf.name == name)
+    {
+      if (sf.size != size)
+        return -1;
+      std::memcpy(sf.ptr, data, size_t(size));
+      return 1;
+    }
+  return 0;
 }
 
 int fbneo_domain_count(void)

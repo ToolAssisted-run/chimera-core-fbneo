@@ -7,12 +7,23 @@ the same button count, the same order. run-gate.sh holds the two together -
 it asks the built core for its panel and compares it with what this wrote -
 so a change to one without the other is a red gate, not a silent misbinding.
 
-usage: waterbox/gen-config.py    (rewrites the three files beside it)
+usage: waterbox/gen-config.py [OUTDIR]   (default: rewrites the three files beside it)
 """
 import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NEOGEO_SRC = os.path.join(HERE, "..", "extern", "FBNeo", "src", "burn", "drv", "neogeo", "d_neogeo.cpp")
+
+
+def neogeo_bioses():
+    """The Neo Geo's "BIOS" dip switch options, as FBNeo's shared Neo Geo list
+    declares them - read from the source, so the setting follows upstream."""
+    import re
+    src = open(NEOGEO_SRC, encoding="latin-1").read()
+    m = re.search(r'\{\s*0\s*,\s*0xFD\s*,\s*0\s*,\s*(\d+)\s*,\s*"BIOS"\s*\}', src)
+    count = int(m.group(1))
+    return re.findall(r'\{\s*0x02\s*,\s*0x01\s*,\s*0x3f\s*,\s*0x[0-9a-fA-F]+\s*,\s*"([^"]+)"', src[m.end():])[:count]
 
 # id, label, setting value, players, buttons (0 = Neo Geo's A-D + Select),
 # the picture's 4:3 virtual size
@@ -36,6 +47,12 @@ def panel(players, buttons):
             names += [P + b for b in ("A", "B", "C", "D", "Select")]
         names += [P + "Start", P + "Coin"]
     return names + ["Service", "Test", "Reset"]
+
+
+def axes(players):
+    """Two analog axes per player (dials, trackballs, paddles), FBNeo's scale."""
+    return [{"name": f"P{p} Axis {a}", "min": -1024, "max": 1023, "neutral": 0}
+            for p in range(1, players + 1) for a in (1, 2)]
 
 
 def controller_name(label):
@@ -76,6 +93,8 @@ def keybinds(players, buttons):
 
 
 def main():
+    import sys
+    out = sys.argv[1] if len(sys.argv) > 1 else HERE
     machines = []
     binds = {}
     for mid, label, value, players, buttons, (vw, vh) in MACHINES:
@@ -86,7 +105,9 @@ def main():
             + ", then Start and Coin; then the cabinet's Service, Test and Reset. The buttons are "
             "the game's own in the order its FBNeo driver lists them - Street Fighter's Weak Punch "
             "to Strong Kick are Buttons 1-6, Magic Sword's Attack, Jump and Fire 3 Buttons 1-3 - "
-            "and a control the game does not have leaves the input roll."
+            "and a control the game does not have leaves the input roll. Two analog axes per "
+            "player carry a game's dial, trackball or paddle (-1024..1023, 0 at rest; a "
+            "relative control takes the value as its speed this frame)."
         )
         machines.append({
             "id": mid,
@@ -95,7 +116,8 @@ def main():
             "virtualWidth": vw,
             "virtualHeight": vh,
             "extensions": {".zip": mid} if mid == "CPS2" else {},
-            "input": {"name": name, "_comment": comment, "buttons": panel(players, buttons), "axes": []},
+            "input": {"name": name, "_comment": comment, "buttons": panel(players, buttons),
+                      "axes": axes(players)},
         })
         binds[name] = keybinds(players, buttons)
 
@@ -106,6 +128,7 @@ def main():
         "machineSetting": "machine",
         "romFile": "romset",
         "deterministic": True,
+        "suggestSettings": True,
         "memoryLayoutMiB": [64, 8, 8, 64, 768],
         "_memoryLayoutMiB_note": (
             "sbrk, sealed, invisible, plain, mmap. The boards themselves are small; the room is "
@@ -126,6 +149,7 @@ def main():
             "vsyncDenominator": 100,
         },
         "audio": {"samplesPerFrame": 2048, "channels": 2, "get": "GetAudio"},
+        "lag": {"inputWasRead": "InputWasRead"},
         "machines": machines,
         "settings": [
             {
@@ -140,7 +164,89 @@ def main():
                     "one of that board's; a set for another board is a load error that names the "
                     "right one. Each board has its own control panel."
                 ),
-            }
+            },
+            {
+                "name": "neogeo_bios",
+                "display": "Neo Geo BIOS",
+                "type": "enum",
+                "options": neogeo_bioses(),
+                "default": neogeo_bioses()[0],
+                "exposedWhen": {"setting": "machine", "is": "neogeo"},
+                "description": (
+                    "Which bios the Neo Geo boots: an MVS (arcade) bios of a region and version, "
+                    "an AES (home console) bios, or a UniBIOS. The bios decides the region, the "
+                    "language, and whether the game runs as an arcade or a home version, so it is "
+                    "part of the machine. It must be in the project's neogeo.zip. The default is "
+                    "FBNeo's own."
+                ),
+            },
+            {
+                "name": "cpu_clock",
+                "display": "CPU Clock (%)",
+                "type": "int",
+                "default": 100,
+                "min": 25,
+                "max": 400,
+                "exposedWhen": {"setting": "machine", "in": ["cps1", "cps2", "neogeo", "system16"]},
+                "description": (
+                    "The main CPU's clock, as a percentage of the board's own (FBNeo's CPU clock "
+                    "setting). Above 100 a game slows down less; below, more. It changes what the "
+                    "machine computes, so a movie needs the same value to play back. CPS-1, CPS-2, "
+                    "Neo Geo and System 16 honour it; CPS-3 does not."
+                ),
+            },
+            {
+                "name": "force_60hz",
+                "display": "Force 60 Hz",
+                "type": "bool",
+                "default": False,
+                "description": (
+                    "Runs a board whose refresh is near 60 Hz (the Neo Geo's 59.18, CPS-1/2's "
+                    "59.63) at exactly 60. The game then runs that much faster against the clock "
+                    "and makes a different sound, so it is part of the machine."
+                ),
+            },
+            {
+                "name": "socd",
+                "display": "Opposite Directions",
+                "type": "enum",
+                "options": ["off", "neutral", "last-input-4way", "last-input-8way",
+                            "first-input", "up-priority", "down-priority"],
+                "default": "last-input-8way",
+                "exposedWhen": {"setting": "machine", "in": ["cps1", "cps2", "cps3", "neogeo"]},
+                "description": (
+                    "What the game sees when a player holds opposite directions together (Left "
+                    "and Right, Up and Down) - FBNeo's SOCD handling. 'off' passes both through, "
+                    "as a stick wired straight to the board would if it could press both; "
+                    "'neutral' cancels them; the others let one win (the last pressed, the "
+                    "first, or up/down). A real joystick cannot press both, so the default "
+                    "(FBNeo's own, last input, 8-way) is what a person with a stick can do; "
+                    "'off' lets a movie do what no stick can."
+                ),
+            },
+            {
+                "name": "pcm_interpolation",
+                "display": "Sample Interpolation",
+                "type": "enum",
+                "options": ["none", "2-point", "4-point"],
+                "default": "2-point",
+                "description": (
+                    "How FBNeo resamples the boards' sample chips (QSound, the MSM6295 and "
+                    "friends) to the output rate. Sound only: the machine is the same either "
+                    "way, and a movie plays back with any value. The default is FBNeo's own."
+                ),
+            },
+            {
+                "name": "fm_interpolation",
+                "display": "FM Interpolation",
+                "type": "enum",
+                "options": ["none", "2-point", "4-point"],
+                "default": "none",
+                "description": (
+                    "How FBNeo resamples the boards' FM chips (YM2151, YM2610) to the output rate. "
+                    "Sound only, like Sample Interpolation. The default is FBNeo's own."
+                ),
+            },
         ],
         "firmware": [
             {
@@ -157,7 +263,7 @@ def main():
             }
         ],
     }
-    with open(os.path.join(HERE, "waterbox.config"), "w") as f:
+    with open(os.path.join(out, "waterbox.config"), "w") as f:
         json.dump(config, f, indent=2, ensure_ascii=True)
         f.write("\n")
 
@@ -176,10 +282,22 @@ def main():
                     "from its parent, so add the parent's set after it (a clone of ssf2t needs "
                     "ssf2t.zip too). Every rom is found by its CRC, then its name."
                 ),
-            }
+            },
+            {
+                "id": "savedata",
+                "title": "Save data",
+                "min": 0,
+                "max": 8,
+                "formats": ["bin"],
+                "help": (
+                    "What a game keeps across power cycles, as Export Save Data wrote it: the "
+                    "Neo Geo's NVRAM.bin and Memory_card.bin, a CPS-2 or CPS-3 EEPROM. Each file "
+                    "goes back into the part of the machine it came from before the first frame."
+                ),
+            },
         ],
     }
-    with open(os.path.join(HERE, "file_slots.json"), "w") as f:
+    with open(os.path.join(out, "file_slots.json"), "w") as f:
         json.dump(slots, f, indent=2, ensure_ascii=True)
         f.write("\n")
 
@@ -193,7 +311,7 @@ def main():
         "AllTrollersAutoFire": {name: {} for name in binds},
         "AllTrollersAnalog": {name: {} for name in binds},
     }
-    with open(os.path.join(HERE, "default_keybinds.json"), "w") as f:
+    with open(os.path.join(out, "default_keybinds.json"), "w") as f:
         json.dump(kb, f, indent=1, ensure_ascii=True)
         f.write("\n")
 

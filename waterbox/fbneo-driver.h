@@ -17,6 +17,15 @@ void fbneo_set_machine(const char* machine);
 // A rom archive the game may take roms from: the game's own set, its parent's
 // set for a clone, the Neo Geo bios set. Any number, any order.
 void fbneo_add_archive(const char* path);
+// A project setting, before fbneo_init: "cpu_clock" (percent), "force_60hz"
+// (true/false), "pcm_interpolation" and "fm_interpolation" ("none", "2-point",
+// "4-point"), "socd" (how opposite directions held together reach the game).
+// 0: no such setting or value.
+int fbneo_set_option(const char* name, const char* value);
+// A dip switch the project sets, before fbneo_init: applied when the game is
+// loaded, by group and option name as fbneo_dip_* list them.
+void fbneo_want_dip(const char* group, const char* option);
+
 // Picks the driver the game archive is named after (sf2.zip -> sf2), loads
 // it, sets its dip switches to their defaults. 0 on failure; fbneo_error says.
 int fbneo_init(const char* game_archive);
@@ -24,6 +33,8 @@ const char* fbneo_error(void);
 void fbneo_exit(void);
 
 void fbneo_frame(void);
+// Did the last frame read the game's controls? No: a lag frame.
+int fbneo_input_was_read(void);
 
 // the picture: BGRA, top-down, w x h
 const uint32_t* fbneo_video(int* w, int* h);
@@ -52,6 +63,29 @@ const char* fbneo_panel_name(const char* machine, int index);
 int fbneo_panel_active(int index);        // after fbneo_init
 void fbneo_panel_set(int index, int pressed);
 
+// The game's dip switches, grouped as its driver groups them: a group is one
+// setting ("Difficulty"), its options the values it can take ("Hard").
+int fbneo_dip_group_count(void);
+const char* fbneo_dip_group_name(int group);
+int fbneo_dip_option_count(int group);
+const char* fbneo_dip_option_name(int group, int option);
+int fbneo_dip_current(int group);    // which option the switches hold now
+int fbneo_dip_default(int group);    // the driver's default option
+// The same, for a game that has not started: its driver's static list, by
+// the rom set it is named after. fbneo_dip_option_* / fbneo_dip_default then
+// answer for it too.
+int fbneo_game_dip_group_count(const char* game_archive);
+const char* fbneo_game_dip_group_name(const char* game_archive, int group);
+// Sets a group to an option by name. 0: no such group or option.
+int fbneo_dip_set(const char* group, const char* option);
+
+// The analog axes: per player "P1 Axis 1", "P1 Axis 2", -1024..1023, 0 at
+// rest; bound to the player's analog inputs in driver order.
+int fbneo_axis_count(const char* machine);
+const char* fbneo_axis_name(int index);
+int fbneo_axis_active(int index);         // after fbneo_init
+void fbneo_axis_set(int index, int value);
+
 // The driver's name and the system it is ("cps2", ...).
 const char* fbneo_game_name(void);
 const char* fbneo_system(void);
@@ -62,6 +96,15 @@ int fbneo_domain_count(void);
 const char* fbneo_domain_name(int i);
 uint8_t* fbneo_domain_ptr(int i);
 int64_t fbneo_domain_size(int i);
+
+// Save data: the game's NVRAM, memory card and EEPROM areas, one file each,
+// named after the area ("NVRAM.bin"). Fixed at init; the bytes are live.
+int fbneo_save_count(void);
+const char* fbneo_save_name(int i);
+const uint8_t* fbneo_save_data(int i, int64_t* size);
+// Puts a saved file back, after fbneo_init and before the first frame:
+// 1 done, 0 the game has no such area, -1 it has, of another size.
+int fbneo_save_load(const char* name, const uint8_t* data, int64_t size);
 
 // FNV-1a over the machine's RAM and NVRAM as the driver declares them
 // (BurnAreaScan): what the gate compares between flavors.

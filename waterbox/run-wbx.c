@@ -61,6 +61,14 @@ static setfn g_SetButton;
 static intfn_i g_IsButtonActive;
 static ptrfn_i g_GetButtonName;
 static intfn g_GetButtonCount;
+static intfn g_InputWasRead;
+static intfn_i g_IsAxisActive;
+static setfn g_SetAxis;
+static intfn g_GetAxisCount;
+static ptrfn g_DescribeDips;
+static i32fn g_SaveCount;
+static ptrfn_i32 g_SaveName, g_SaveBuffer;
+static i64fn_i32 g_SaveSize;
 static framefn g_FrameAdvance;
 static ptrfn g_GetVideoBgra;
 static intfn g_GetVideoWidth, g_GetVideoHeight;
@@ -92,8 +100,17 @@ static int core_init(void) { return g_Init(); }
 static int core_init_done(void) { return 1; } /* boot happens before Seal, not in gate_run */
 static const char *core_load_error(void) { return (const char *)g_GetLoadError(); }
 static int core_button_count(void) { return g_GetButtonCount(); }
+static int core_input_was_read(void) { return g_InputWasRead(); }
+static int core_axis_count(void) { return g_GetAxisCount(); }
+static int core_axis_active(int32_t i) { return g_IsAxisActive(i); }
+static void core_set_axis(int32_t i, int32_t v) { g_SetAxis(i, v); }
 static int core_button_active(int32_t i) { return g_IsButtonActive(i); }
 static const char *core_button_name(int32_t i) { return (const char *)g_GetButtonName(i); }
+static const char *core_describe(void) { return (const char *)g_DescribeDips(); }
+static int core_save_count(void) { return g_SaveCount(); }
+static const char *core_save_name(int i) { return (const char *)g_SaveName(i); }
+static int64_t core_save_size(int i) { return g_SaveSize(i); }
+static const uint8_t *core_save_data(int i) { return (const uint8_t *)g_SaveBuffer(i); }
 static void core_set_button(int32_t i, int32_t s) { g_SetButton(i, s); }
 static void core_frame(void) { g_FrameAdvance(0); }
 static const uint32_t *core_video(int *w, int *h)
@@ -179,7 +196,7 @@ static void build_host(void)
 		if (stat(path, &st) != 0 || !S_ISREG(st.st_mode))
 			continue;
 		const char *dot = strrchr(de->d_name, '.');
-		if (dot && (!strcmp(dot, ".raw") || !strcmp(dot, ".txt") || !strcmp(dot, ".bin")))
+		if (dot && (!strcmp(dot, ".raw") || !strcmp(dot, ".txt")))
 			continue;
 		FILE *f = fopen(path, "rb");
 		if (!f) { perror(path); exit(1); }
@@ -201,6 +218,15 @@ static void resolve_exports(void)
 	g_IsButtonActive = (intfn_i)proc(g_host, "IsButtonActive");
 	g_GetButtonName = (ptrfn_i)proc(g_host, "GetButtonName");
 	g_GetButtonCount = (intfn)proc(g_host, "GetButtonCount");
+	g_InputWasRead = (intfn)proc(g_host, "InputWasRead");
+	g_IsAxisActive = (intfn_i)proc(g_host, "IsAxisActive");
+	g_SetAxis = (setfn)proc(g_host, "SetAxis");
+	g_GetAxisCount = (intfn)proc(g_host, "GetAxisCount");
+	g_DescribeDips = (ptrfn)proc(g_host, "DescribeDips");
+	g_SaveCount = (i32fn)proc(g_host, "GetSaveDataFileCount");
+	g_SaveName = (ptrfn_i32)proc(g_host, "GetSaveDataFileName");
+	g_SaveSize = (i64fn_i32)proc(g_host, "GetSaveDataFileSize");
+	g_SaveBuffer = (ptrfn_i32)proc(g_host, "GetSaveDataFileBuffer");
 	g_FrameAdvance = (framefn)proc(g_host, "FrameAdvance");
 	g_GetVideoBgra = (ptrfn)proc(g_host, "GetVideoBgra");
 	g_GetVideoWidth = (intfn)proc(g_host, "GetVideoWidth");
@@ -243,7 +269,12 @@ int main(int argc, char **argv)
 		.button_count = core_button_count,
 		.button_active = core_button_active,
 		.button_name = core_button_name,
+		.describe = core_describe,
 		.frame = core_frame,
+		.input_was_read = core_input_was_read,
+		.axis_count = core_axis_count,
+		.axis_active = core_axis_active,
+		.set_axis = core_set_axis,
 		.video = core_video,
 		.audio = core_audio,
 		.domain_count = core_domain_count,
@@ -251,6 +282,10 @@ int main(int argc, char **argv)
 		.domain_ptr = core_domain_ptr,
 		.domain_size = core_domain_size,
 		.pre_frame = core_pre_frame,
+		.save_count = core_save_count,
+		.save_name = core_save_name,
+		.save_size = core_save_size,
+		.save_data = core_save_data,
 	};
 
 	/* Init runs before Seal - the loaded machine is the sealed baseline */

@@ -81,15 +81,49 @@ Samurai Shodown IV (Neo Geo, with neogeo.zip).
   picture where an idle movie does not.
 - Chimera's package contract tests: pass.
 
+## Settings, lag, save data (2026-09-26, second round)
+
+Discovered by reading FBNeo's globals and each driver's dip lists, and
+decided with the user:
+
+- **Dip switches are per game** (Magic Sword 13 groups, Shinobi 8, CPS-3 a
+  Region and "Less sprite lag", SSF2T none - CPS-2 keeps its settings in
+  EEPROM). Chimera declares settings once per package, so Chimera learned
+  per-game settings: the core's `GetGameSettings` export (after Init) and a
+  `settings` array in its `SuggestSettings` answer (before, in the wizard).
+  Each group is `dip.<group>`, its options the driver's names, its default
+  the driver's; duplicate group or option names get " #2". The Neo Geo's
+  BIOS group is left to the board setting.
+- **Applying switches**: after the driver starts. Some are read only at
+  reset (the Neo Geo takes its bios then), so a machine whose switches
+  differ from the driver's defaults holds the driver's own Reset input on its
+  first frame; one on the defaults boots exactly as FBNeo boots it.
+- **Board settings**: `neogeo_bios` (the 35 options read from
+  d_neogeo.cpp by gen-config.py), `cpu_clock` (nBurnCPUSpeedAdjust; CPS-3
+  ignores it), `force_60hz` (bForce60Hz), `socd` (nSocd - found on the way:
+  FBNeo cleans opposite directions by default, last input wins 8-way, and
+  `off` hands both to the game), `pcm_interpolation` / `fm_interpolation`
+  (nInterpolation / nFMInterpolation, output only - measured: same RAM and
+  lag, other sound). Blending (bBurnUseBlend) needs FBNeo's blend-table
+  files, which a sandbox never has, so it is not offered.
+- **Lag** (patch 0001): `CHIMERA_INPUT_READ` marks a board's control reads -
+  CpsReadPort's player and coin ports (not 0x021, which also carries the
+  EEPROM bit read constantly), CPS-3's four input words, the Neo Geo's input
+  bank, System 16's per-game handlers - and the driver clears the flag
+  before each frame. Counted, 1200 exercised frames: CPS-1 115, CPS-2 48,
+  CPS-3 69, System 16 3, Neo Geo 285, native == sandbox.
+- **Save data**: every area the driver scans as NVRAM, memory card or
+  EEPROM (ACB_EEPROM: FBNeo keeps EEPROMs out of its own states and writes
+  them to files, which this core never reads or writes) is one exported
+  file; the Save data slot puts each back before the first frame, and a file
+  the game has no area for, or of another size, is a load error. Neo Geo
+  round trip: identical bytes, and a different machine from a fresh boot.
+- **Analog**: two axes a player, -1024..1023 (FBNeo's scale), bound to the
+  player's analog inputs in driver order. No game here has one yet.
+
 ## Open
 
-- **Lag frames**: FBNeo reads a game's inputs through each board's own
-  memory handlers; there is no common hook, so the core exports no
-  `InputWasRead` yet.
-- **Analog controls** (dials, trackballs, paddles on some CPS-1 and System 16
-  games) are not on the panels.
-- **Save data**: CPS-2's EEPROM and the Neo Geo's backup RAM and memory card
-  live in the machine and its savestates; they are not exported as files.
-- **Dip switches and the Neo Geo bios choice** as project settings.
+- **Analog axes are untested**: no game with a dial, trackball or paddle
+  has been run.
 - Only one game per system has been run, and no vertical game: which way
   one is turned upright (fbneo_frame) is unverified.
