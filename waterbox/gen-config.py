@@ -92,6 +92,57 @@ def keybinds(players, buttons):
     return out
 
 
+# ---- what the controls and the system are called ----
+# The frontend keeps no table of these: a core says what its own are called.
+# MNEMONICS is the letter each button writes into a movie's text and heads its
+# input column with, by the button's name - whole, or without its player ("P2
+# Up" is found under "Up"), so one line serves every pad. AXIS_HEADERS is the
+# short header of each axis's column. (An entry is read by position: a letter
+# may change and no movie made before it is harmed.)
+MNEMONICS = {
+    "Up": "U", "Down": "D", "Left": "L", "Right": "R", "Button 1": "1", "Button 2": "2",
+    "Button 3": "3", "Button 4": "4", "Button 5": "5", "Button 6": "6", "Start": "S", "Coin": "c",
+    "Service": "S", "Test": "T", "Reset": "r", "A": "A", "B": "B", "C": "C", "D": "d",
+    "Select": "s",
+}
+AXIS_HEADERS = {
+    "P1 Axis 1": "P1A1", "P1 Axis 2": "P1A2", "P2 Axis 1": "P2A1", "P2 Axis 2": "P2A2",
+    "P3 Axis 1": "P3A1", "P3 Axis 2": "P3A2", "P4 Axis 1": "P4A1", "P4 Axis 2": "P4A2",
+}
+SYSTEM_NAMES = {
+    "CPS1": "Capcom CPS-1", "CPS2": "Capcom CPS-2", "CPS3": "Capcom CPS-3",
+    "NEOGEO": "SNK Neo Geo MVS", "SYS16": "Sega System 16",
+}
+
+
+def _bare(name):
+    """A control's name without its player: "P2 Up" -> "Up"."""
+    head, _, rest = name.partition(" ")
+    return rest if rest and head[:1] == "P" and head[1:].isdigit() else name
+
+
+def mnemonics_for(buttons):
+    """The "mnemonics" of an input declaration: a letter for every one of its
+    buttons, and for nothing else. A button nobody gave a letter stops the
+    build - the engine would give it its rule's guess, and two columns of one
+    pad would share a letter with nobody having decided it."""
+    out = {}
+    for b in buttons:
+        key = b if b in MNEMONICS else _bare(b)
+        if key not in MNEMONICS:
+            raise SystemExit("no mnemonic for the button %r (MNEMONICS in %s)" % (b, __file__))
+        out[key] = MNEMONICS[key]
+    return out
+
+
+def with_headers(axes):
+    """The axes with their column headers; an axis nobody named stops the build."""
+    missing = [a["name"] for a in axes if a["name"] not in AXIS_HEADERS]
+    if missing:
+        raise SystemExit("no header for the axes %s (AXIS_HEADERS in %s)" % (missing, __file__))
+    return [dict(a, header=AXIS_HEADERS[a["name"]]) for a in axes]
+
+
 def main():
     import sys
     out = sys.argv[1] if len(sys.argv) > 1 else HERE
@@ -117,12 +168,14 @@ def main():
             "virtualHeight": vh,
             "extensions": {".zip": mid} if mid == "CPS2" else {},
             "input": {"name": name, "_comment": comment, "buttons": panel(players, buttons),
-                      "axes": axes(players)},
+                      "mnemonics": mnemonics_for(panel(players, buttons)),
+                      "axes": with_headers(axes(players))},
         })
         binds[name] = keybinds(players, buttons)
 
     config = {
         "coreName": "FBNeo",
+        "systemNames": SYSTEM_NAMES,
         "author": "The FinalBurn Neo team; chimera port by Sergio Martin",
         "url": "https://github.com/ToolAssisted-run/chimera-core-fbneo",
         "machineSetting": "machine",
