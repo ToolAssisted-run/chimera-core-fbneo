@@ -21,7 +21,7 @@ set -eu
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/.." && pwd)"
 chimera_root="${CHIMERA_ROOT:-$HOME/chimera}"
-mb="${MINIBOX_DIR:-$chimera_root/extern/chimera-common-minibox}"
+mb="${MINIBOX_DIR:-}"
 roms="${FBNEO_ROMS:-$root/tests/roms-local}"
 while getopts "r:m:" opt; do
 	case "$opt" in
@@ -30,6 +30,8 @@ while getopts "r:m:" opt; do
 		*) exit 2 ;;
 	esac
 done
+# after the options, so that -r alone moves miniBox with it
+[ -n "$mb" ] || mb="$chimera_root/extern/chimera-common-minibox"
 
 work="$root/build/gate"
 rm -rf "$work"; mkdir -p "$work"

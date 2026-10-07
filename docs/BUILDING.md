@@ -62,7 +62,7 @@ Where the scripts look when they are not told:
 | `waterbox/build-package.sh` | `-r <chimera>` | `../chimera` beside this repository, then `$HOME/chimera` |
 | `waterbox/build-package.sh` | `-m <miniBox>` or `MINIBOX_DIR` | `<chimera>/extern/chimera-common-minibox` |
 | `waterbox/run-gate.sh` | `-r <chimera>` or `CHIMERA_ROOT` | `$HOME/chimera` |
-| `waterbox/run-gate.sh` | `-m <miniBox>` or `MINIBOX_DIR` | `$CHIMERA_ROOT/extern/chimera-common-minibox` |
+| `waterbox/run-gate.sh` | `-m <miniBox>` or `MINIBOX_DIR` | `<chimera>/extern/chimera-common-minibox` |
 | `waterbox/run-gate.sh` | `FBNEO_ROMS` | `tests/roms-local` |
 
 The defaults are not all the same place. Pass the paths, as the workflow
@@ -302,10 +302,6 @@ names the right one.
   message gives the command.
 - **`chimera checkout not found; pass -r <path>`** from `build-package.sh`:
   pass `-r`.
-- **`run-gate.sh -r <chimera>` still uses another miniBox.** The script
-  works out the miniBox default from `CHIMERA_ROOT` before it reads its
-  options, so `-r` alone does not move it. Pass `-m` as well, or set both
-  environment variables.
 - **`FAIL the native reference and harness build` / `FAIL package builds`**:
   the gate hides the build output. Read `build/gate/setup.log`,
   `build/gate/native.log` and `build/gate/package.log`.
