@@ -56,6 +56,15 @@ data slot puts them back before the first frame.
 
 The package carries no rom.
 
+## Using it in Chimera
+
+Chimera includes no cores and downloads none. Download
+`fbneo-<version>.chimeraCore` from this repository's
+[Releases](https://github.com/ToolAssisted-run/chimera-core-fbneo/releases)
+page, or build it, and put it in the `Cores` folder beside `Chimera.exe`.
+File > Core Manager lists that folder and can point Chimera at another. The
+same file works on Linux and on Windows.
+
 ## Building
 
 ```sh
@@ -65,6 +74,11 @@ ninja -C build/meson-native                   # run-native, run-wbx
 ./waterbox/build-package.sh                   # core.wbx -> ~/chimera/build/Cores/fbneo.chimeraCore
 ./waterbox/run-gate.sh                        # the gate
 ```
+
+As written, these expect a Chimera checkout at `~/chimera` with miniBox
+built; anywhere else, pass `-Dminibox_dir=<miniBox>`, `-m <miniBox>` and
+`-r <chimera>`. [docs/BUILDING.md](docs/BUILDING.md) has every step;
+[AGENTS.md](AGENTS.md) is the short version for an AI coding agent.
 
 The gate's machine legs need rom sets in `tests/roms-local` (or `FBNEO_ROMS`):
 `msword.zip`, `ssf2t.zip`, `sfiii3.zip`, `shinobi.zip`, `samsho4.zip` and
