@@ -17,6 +17,7 @@
 #include <strings.h>
 
 #include "burnint.h"
+#include "cd_interface.h"
 #include "state.h"
 #include "joyprocess.h"
 #include "zip-reader.h"
@@ -63,7 +64,9 @@ static std::vector<uint32_t> s_draw;   // what FBNeo draws into, before rotation
 // channel, so RGB565 loses nothing, and the pixels are widened afterwards.
 static int s_bpp = 4;
 
-static const int kAudioRate = 48000;
+// 48 kHz, but 44.1 for the Neo Geo CD: its driver mixes the disc's audio
+// tracks into the frame as they are, a CD's samples at a CD's rate.
+static int s_audio_rate = 48000;
 static std::vector<int16_t> s_audio;
 static int s_audio_frames;
 
@@ -169,9 +172,11 @@ struct PanelShape
   const char* machine;
   int players;
   int buttons;      // generic "Button n"; 0 = Neo Geo's A-D and Select
+  bool cabinet;     // a coin slot per player, and the Service and Test switches
 };
 static const PanelShape kShapes[] = {
-    {"cps1", 4, 6}, {"cps2", 4, 6}, {"cps3", 2, 6}, {"neogeo", 2, 0}, {"system16", 4, 5},
+    {"cps1", 4, 6, true}, {"cps2", 4, 6, true}, {"cps3", 2, 6, true}, {"neogeo", 2, 0, true},
+    {"system16", 4, 5, true}, {"neocd", 2, 0, false},
 };
 
 static const PanelShape* ShapeOf(const std::string& machine)
@@ -200,10 +205,13 @@ static std::vector<std::string> PanelNames(const std::string& machine)
       for (const char* b : {"A", "B", "C", "D", "Select"})
         out.push_back(P + b);
     out.push_back(P + "Start");
-    out.push_back(P + "Coin");
+    if (sh->cabinet)
+      out.push_back(P + "Coin");
   }
-  for (const char* c : {"Service", "Test", "Reset"})
-    out.push_back(c);
+  if (sh->cabinet)
+    for (const char* c : {"Service", "Test"})
+      out.push_back(c);
+  out.push_back("Reset");
   return out;
 }
 
@@ -222,7 +230,7 @@ static int AxisCount(const std::string& machine)
 {
   for (const auto& sh : kShapes)
     if (machine == sh.machine)
-      return sh.players * kAxesPerPlayer;
+      return sh.cabinet ? sh.players * kAxesPerPlayer : 0;   // the console's pad has none
   return 0;
 }
 
@@ -264,6 +272,8 @@ static void BindPanel(const std::string& machine)
   const std::vector<std::string> names = PanelNames(machine);
   s_bound.assign(names.size(), -1);
   const PanelShape* sh = ShapeOf(machine);
+  if (!sh)
+    return;
   auto find = [&](const std::string& n) {
     for (size_t i = 0; i < s_inputs.size(); i++)
       if (s_inputs[i].type == BIT_DIGITAL && s_inputs[i].name == n)
@@ -271,7 +281,7 @@ static void BindPanel(const std::string& machine)
     return -1;
   };
   size_t at = 0;
-  for (int p = 1; sh && p <= sh->players; p++)
+  for (int p = 1; p <= sh->players; p++)
   {
     const std::string P = "P" + std::to_string(p) + " ";
     std::vector<int> buttons;
@@ -290,7 +300,8 @@ static void BindPanel(const std::string& machine)
     if (!sh->buttons)
       s_bound[at++] = find(P + "Select");
     s_bound[at++] = find(P + "Start");
-    s_bound[at++] = find(P + "Coin");
+    if (sh->cabinet)
+      s_bound[at++] = find(P + "Coin");
   }
   auto first = [&](std::initializer_list<const char*> ns) {
     for (const char* n : ns)
@@ -298,8 +309,11 @@ static void BindPanel(const std::string& machine)
         return i;
     return -1;
   };
-  s_bound[at++] = first({"Service", "Service 1"});
-  s_bound[at++] = first({"Test", "Diagnostic", "Diagnostics", "Service Mode"});
+  if (sh->cabinet)
+  {
+    s_bound[at++] = first({"Service", "Service 1"});
+    s_bound[at++] = first({"Test", "Diagnostic", "Diagnostics", "Service Mode"});
+  }
   s_bound[at++] = first({"Reset"});
 }
 
@@ -471,7 +485,8 @@ static const char* SystemOf(INT32 hw)
   case HARDWARE_PREFIX_CAPCOM: return "cps1";
   case HARDWARE_PREFIX_CPS2: return "cps2";
   case HARDWARE_PREFIX_CPS3: return "cps3";
-  case HARDWARE_PREFIX_SNK: return "neogeo";
+  case HARDWARE_PREFIX_SNK:
+    return (hw & HARDWARE_PUBLIC_MASK) == HARDWARE_SNK_NEOCD ? "neocd" : "neogeo";
   case HARDWARE_PREFIX_SEGA: return "system16";
   default: return "other";
   }
@@ -483,6 +498,7 @@ static const char* DisplayName(const std::string& system)
   if (system == "cps2") return "CPS-2";
   if (system == "cps3") return "CPS-3";
   if (system == "neogeo") return "Neo Geo";
+  if (system == "neocd") return "Neo Geo CD";
   if (system == "system16") return "System 16";
   return system.c_str();
 }
@@ -500,6 +516,13 @@ static std::string DriverNameOf(const char* archive)
   for (auto& c : base)
     c = char(tolower(c));
   return base;
+}
+
+// The driver a project's game is: the one its rom set is named after, and
+// for a Neo Geo CD the console itself - the game is the disc in its drive.
+static std::string DriverFor(const char* game)
+{
+  return s_machine == "neocd" ? "neocdz" : DriverNameOf(game);
 }
 
 // Makes the named driver the active one, without starting it
@@ -524,16 +547,32 @@ static bool SelectDriver(const std::string& name)
 int fbneo_init(const char* game_archive)
 {
   s_error.clear();
-  const std::string base = DriverNameOf(game_archive);
+  const bool disc = s_machine == "neocd";
+  const std::string base = DriverFor(game_archive);
 
-  // the game's own archive is always searched first
-  fbneo_add_archive(game_archive);
-  if (s_archives.empty())
+  if (disc)
   {
-    s_error = "cannot read the game's archive " + std::string(game_archive ? game_archive : "");
-    return 0;
+    // the game is a disc image for the drive; the roms are the console's own
+    const std::string image = game_archive ? game_archive : "";
+    if (image.empty() || image.size() >= sizeof CDEmuImage)
+    {
+      s_error = image.empty() ? "no disc: a Neo Geo CD project needs a disc image"
+                              : "the disc image's path is too long: " + image;
+      return 0;
+    }
+    strcpy(CDEmuImage, image.c_str());
   }
-  std::rotate(s_archives.begin(), s_archives.end() - 1, s_archives.end());
+  else
+  {
+    // the game's own archive is always searched first
+    fbneo_add_archive(game_archive);
+    if (s_archives.empty())
+    {
+      s_error = "cannot read the game's archive " + std::string(game_archive ? game_archive : "");
+      return 0;
+    }
+    std::rotate(s_archives.begin(), s_archives.end() - 1, s_archives.end());
+  }
 
   if (!SelectDriver(base))
   {
@@ -564,7 +603,8 @@ int fbneo_init(const char* game_archive)
   nSpriteEnable = 0xFF;
 
   // the sound: a fixed rate; FBNeo makes nBurnSoundLen samples a frame
-  nBurnSoundRate = kAudioRate;
+  s_audio_rate = disc ? 44100 : 48000;
+  nBurnSoundRate = s_audio_rate;
   // the project's board settings, which the driver reads while it starts
   nBurnCPUSpeedAdjust = s_cpu_clock * 256 / 100;
   bForce60Hz = s_force_60hz;
@@ -574,15 +614,27 @@ int fbneo_init(const char* game_archive)
     v = s_socd;
 
   BurnExtLoadRom = LoadRom;
+  // The disc goes in before the console is switched on: its driver reads the
+  // table of contents while it starts.
+  if (disc && CDEmuInit() != 0)
+  {
+    s_error = "cannot read the disc image " + std::string(CDEmuImage) +
+              " - it must be a .cue sheet with every track file it names beside it, or a .chd";
+    return 0;
+  }
   if (BurnDrvInit() != 0)
   {
-    s_error = "FBNeo could not start " + base +
-              " - a rom is missing or wrong (the log names it); a clone needs its parent's set, "
-              "a Neo Geo game the bios set";
+    if (disc)
+      CDEmuExit();
+    s_error = disc ? "FBNeo could not start the Neo Geo CD - its bios is missing or wrong (the log "
+                     "names the rom): neocd.bin from neocdz.zip, 000-lo.lo from neogeo.zip"
+                   : "FBNeo could not start " + base +
+                         " - a rom is missing or wrong (the log names it); a clone needs its "
+                         "parent's set, a Neo Geo game the bios set";
     return 0;
   }
   s_running = true;
-  nBurnSoundLen = (kAudioRate * 100 + nBurnFPS / 2) / nBurnFPS;
+  nBurnSoundLen = (s_audio_rate * 100 + nBurnFPS / 2) / nBurnFPS;
   s_audio.assign(size_t(nBurnSoundLen) * 2 + 16, 0);
   BurnDrvGetFullSize(&s_max_w, &s_max_h);
 
@@ -640,7 +692,10 @@ int fbneo_init(const char* game_archive)
 void fbneo_exit(void)
 {
   if (s_running)
+  {
     BurnDrvExit();
+    CDEmuExit();   // answers 1 when no disc was in
+  }
   s_running = false;
 }
 
@@ -748,7 +803,7 @@ const int16_t* fbneo_audio(int* frames)
 
 int fbneo_audio_rate(void)
 {
-  return kAudioRate;
+  return s_audio_rate;
 }
 
 int fbneo_fps100(void)
@@ -848,7 +903,7 @@ static bool Describe(const char* archive)
 {
   if (s_running)
     return true;   // the list is the running game's
-  const std::string name = DriverNameOf(archive);
+  const std::string name = DriverFor(archive);
   if (name != s_described)
   {
     s_dips.clear();

@@ -12,7 +12,8 @@ extern "C" {
 #endif
 
 // which system the project says this is: "cps1", "cps2", "cps3", "neogeo",
-// "system16". Empty = no check (a harness).
+// "system16", or "neocd" - the Neo Geo CD, whose game is a disc image and not
+// a rom set. Empty = no check (a harness).
 void fbneo_set_machine(const char* machine);
 // A rom archive the game may take roms from: the game's own set, its parent's
 // set for a clone, the Neo Geo bios set. Any number, any order.
@@ -27,7 +28,10 @@ int fbneo_set_option(const char* name, const char* value);
 void fbneo_want_dip(const char* group, const char* option);
 
 // Picks the driver the game archive is named after (sf2.zip -> sf2), loads
-// it, sets its dip switches to their defaults. 0 on failure; fbneo_error says.
+// it, sets its dip switches to their defaults. For a Neo Geo CD the game is
+// the disc image for its drive (a .cue with its track files beside it, or a
+// .chd) and the roms are the console's, from the archives added before.
+// 0 on failure; fbneo_error says.
 int fbneo_init(const char* game_archive);
 const char* fbneo_error(void);
 void fbneo_exit(void);
@@ -42,7 +46,8 @@ int fbneo_video_max(int* w, int* h);   // the largest a frame can be
 // The picture's display aspect as the driver gives it - of the upright
 // picture, so 3:4 for a game whose monitor stood on its side. 0: unknown.
 int fbneo_display_aspect(int* x, int* y);
-// this frame's sound: interleaved stereo s16 at fbneo_audio_rate()
+// this frame's sound: interleaved stereo s16 at fbneo_audio_rate() (48000;
+// a Neo Geo CD's 44100, the rate of the disc's audio tracks)
 const int16_t* fbneo_audio(int* frames);
 int fbneo_audio_rate(void);
 // frames per second x 100 (5997 = 59.97)
@@ -59,8 +64,10 @@ int fbneo_input_type(int index);
 // The machine's panel: the controls a project's input roll has, the same list
 // for every game of a system. "P1 Up" ... "P1 Button 1".."P1 Button 6" (Neo
 // Geo: "P1 A".."P1 D", "P1 Select"), "P1 Start", "P1 Coin", per player, then
-// the cabinet's "Service", "Test" and "Reset". Each is bound to the game's own
-// input when the game is loaded; a control the game lacks is inactive.
+// the cabinet's "Service", "Test" and "Reset". The Neo Geo CD is a console:
+// no coin slots, no Service or Test, only its "Reset". Each is bound to the
+// game's own input when the game is loaded; a control the game lacks is
+// inactive.
 int fbneo_panel_count(const char* machine);
 const char* fbneo_panel_name(const char* machine, int index);
 int fbneo_panel_active(int index);        // after fbneo_init

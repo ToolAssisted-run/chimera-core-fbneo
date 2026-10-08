@@ -1,6 +1,6 @@
 {
  "_comment": [
-  "Player 1 on the keyboard (arrows, Z X C / A S D for the six buttons, 1 Start, 5 Coin) and on the first pad; players 2-4 on pads 2-4 (their Start on 2-4, Coin on 6-8). The cabinet's Service is 9, Test F2; Reset ships unbound."
+  "Player 1 on the keyboard (arrows, Z X C / A S D for the six buttons, 1 Start, 5 Coin) and on the first pad; players 2-4 on pads 2-4 (their Start on 2-4, Coin on 6-8). The cabinet's Service is 9, Test F2; Reset ships unbound. The Neo Geo CD's pads have no Coin, and the console no Service or Test."
  ],
  "AllTrollers": {
   "CPS-1 Panel": {
@@ -213,6 +213,29 @@
    "Service": "D9",
    "Test": "F2",
    "Reset": ""
+  },
+  "Neo Geo CD Pads": {
+   "P1 Up": "Up, J1 POV1U, X1 DpadUp, X1 LStickUp",
+   "P1 Down": "Down, J1 POV1D, X1 DpadDown, X1 LStickDown",
+   "P1 Left": "Left, J1 POV1L, X1 DpadLeft, X1 LStickLeft",
+   "P1 Right": "Right, J1 POV1R, X1 DpadRight, X1 LStickRight",
+   "P1 A": "Z, J1 B1, X1 X",
+   "P1 B": "X, J1 B2, X1 A",
+   "P1 C": "C, J1 B3, X1 B",
+   "P1 D": "A, J1 B4, X1 Y",
+   "P1 Select": "Q, J1 B7, X1 Back",
+   "P1 Start": "D1, J1 B10, X1 Start",
+   "P2 Up": "J2 POV1U, X2 DpadUp, X2 LStickUp",
+   "P2 Down": "J2 POV1D, X2 DpadDown, X2 LStickDown",
+   "P2 Left": "J2 POV1L, X2 DpadLeft, X2 LStickLeft",
+   "P2 Right": "J2 POV1R, X2 DpadRight, X2 LStickRight",
+   "P2 A": "J2 B1, X2 X",
+   "P2 B": "J2 B2, X2 A",
+   "P2 C": "J2 B3, X2 B",
+   "P2 D": "J2 B4, X2 Y",
+   "P2 Select": "J2 B7, X2 Back",
+   "P2 Start": "D2, J2 B10, X2 Start",
+   "Reset": ""
   }
  },
  "AllTrollersAutoFire": {
@@ -220,13 +243,15 @@
   "CPS-2 Panel": {},
   "CPS-3 Panel": {},
   "Neo Geo MVS Panel": {},
-  "System 16 Panel": {}
+  "System 16 Panel": {},
+  "Neo Geo CD Pads": {}
  },
  "AllTrollersAnalog": {
   "CPS-1 Panel": {},
   "CPS-2 Panel": {},
   "CPS-3 Panel": {},
   "Neo Geo MVS Panel": {},
-  "System 16 Panel": {}
+  "System 16 Panel": {},
+  "Neo Geo CD Pads": {}
  }
 }

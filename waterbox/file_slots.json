@@ -1,6 +1,21 @@
 {
-  "_comment": "The rom sets a project takes. Slot ids are what project manifests record.",
+  "_comment": "The rom sets or the disc a project takes. Slot ids are what project manifests record.",
   "slots": [
+    {
+      "id": "disc",
+      "title": "Disc",
+      "min": 1,
+      "max": 1,
+      "formats": [
+        "cue",
+        "chd"
+      ],
+      "exposedWhen": {
+        "setting": "machine",
+        "is": "neocd"
+      },
+      "help": "The Neo Geo CD game: a .cue sheet, whose track files (.bin) join the project automatically and must sit beside it, or a .chd. A disc kept as a zip has to be unpacked first."
+    },
     {
       "id": "romset",
       "title": "Rom set",
@@ -9,6 +24,16 @@
       "formats": [
         "zip"
       ],
+      "exposedWhen": {
+        "setting": "machine",
+        "in": [
+          "cps1",
+          "cps2",
+          "cps3",
+          "neogeo",
+          "system16"
+        ]
+      },
       "help": "The game's FBNeo rom set first, named as FBNeo names it (ssf2t.zip) - the name is how the core knows the game. A clone's set holds only what differs from its parent, so add the parent's set after it (a clone of ssf2t needs ssf2t.zip too). Every rom is found by its CRC, then its name."
     },
     {
@@ -19,7 +44,7 @@
       "formats": [
         "bin"
       ],
-      "help": "What a game keeps across power cycles, as Export Save Data wrote it: the Neo Geo's NVRAM.bin and Memory_card.bin, a CPS-2 or CPS-3 EEPROM. Each file goes back into the part of the machine it came from before the first frame."
+      "help": "What a game keeps across power cycles, as Export Save Data wrote it: the Neo Geo's NVRAM.bin and Memory_card.bin, a CPS-2 or CPS-3 EEPROM, the Neo Geo CD's backup memory. Each file goes back into the part of the machine it came from before the first frame."
     }
   ]
 }

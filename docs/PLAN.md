@@ -137,6 +137,40 @@ GetDisplayAspectX/Y (chimera: ce_session_display_aspect), since a machine's
 declared 4:3 cannot know a game stands on its side. 1944 is horizontal
 (FBNeo does not flag it), which is how the first try at this missed.
 
+## The Neo Geo CD (2026-10-08, chimera#220)
+
+A sixth machine, `neocd`, and the first here whose game is not a rom set:
+FBNeo's `neocdz` driver with a disc image in its drive.
+
+- **The drive** is FBNeo's own image reader, `src/intf/cd/cd_img.cpp` and
+  `cd_chd.cpp`, compiled as they are over its bundled libchdr (with the LZMA
+  and Zstandard decoders its fragment leaves out). They include the
+  frontend's header, which with no frontend named lacks one Windows type:
+  `waterbox/cd-shim.h` goes first. `waterbox/cd-drive.cpp` is what a
+  frontend adds: which image, the `CDEmu*` calls, four text helpers. The
+  arcade machines get the answers FBNeo gives with no module started.
+- **The disc** is the Disc slot's file: a `.cue` sheet whose track files the
+  engine brings with it (one file per track, as Redump lays a disc out, or
+  one for all), or a `.chd`. A zip is not read: a disc is 700 MB and the
+  reader seeks in it.
+- **Firmware**: `neocdz.zip` (neocd.bin, and the replacement bioses the BIOS
+  switch offers) and `neogeo.zip` (the zoom table, 000-lo.lo).
+- **Sound at 44.1 kHz** for this machine: the driver mixes the disc's audio
+  into the frame sample for sample, with no resampling. The boards stay at 48.
+- **The pads**: no Coin, no Service or Test, no analog axes - a console.
+- **Loading speed** is the driver's switch, at the driver's default, which
+  runs up to 15 machine frames in one while the drive loads. `Normal` is the
+  console. Either way a frame is the same every time it is run.
+- **States**: the drive's position and its sound buffer are the machine's,
+  and a save and load around every frame, and into a new host, change
+  nothing (the gate's rerecord and session legs).
+
+Proved on The King of Fighters '99 (a 43-track sheet): native == sandbox
+over 3000 exercised frames, rerecord and a new host the same, the music
+heard (silence in place of the audio tracks changes the sound and nothing
+else), a project through chimera-run. By hand: title, team select, a round
+fought. A `.chd` has not been run: none was at hand, and no tool to make one.
+
 ## Open
 
 - Few games per system have been run: CPS-1 Magic Sword, Forgotten Worlds,

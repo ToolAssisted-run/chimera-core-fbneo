@@ -1,12 +1,12 @@
 // What FBNeo's library expects a frontend to provide, and this core's answer
 // to each. Nothing here emulates anything: they are the frontend's own
-// features (IPS patches, rom-data files, the Neo Geo CD drive, window
-// re-initialisation, file paths) that a headless arcade core does not have.
+// features (IPS patches, rom-data files, window re-initialisation, file
+// paths) that a headless core does not have. The Neo Geo CD's drive is real,
+// in cd-drive.cpp.
 // SPDX-License-Identifier: MIT
 #include <cstring>
 
 #include "burnint.h"
-#include "cd_interface.h"
 
 // rom-data files (FBNeo's own "romdata" feature): none
 RomDataInfo* pRDI = nullptr;
@@ -48,14 +48,3 @@ INT32 __cdecl ZipLoadOneFile(char*, const char*, void**, INT32*)
 {
   return 1;
 }
-
-// The Neo Geo driver carries the Neo Geo CD's code too; this core has no CD.
-void NeoCDInfo_Exit() {}
-CDEmuStatusValue CDEmuStatus = idle;
-INT32 CDEmuStop() { return 0; }
-INT32 CDEmuPlay(UINT8, UINT8, UINT8) { return 1; }
-INT32 CDEmuLoadSector(INT32, char*) { return 0; }
-UINT8* CDEmuReadTOC(INT32) { return nullptr; }
-UINT8* CDEmuReadQChannel() { return nullptr; }
-INT32 CDEmuGetSoundBuffer(INT16*, INT32) { return 0; }
-INT32 CDEmuScan(INT32, INT32*) { return 0; }

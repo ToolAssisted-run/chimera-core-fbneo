@@ -4,7 +4,8 @@ This repository builds FinalBurn Neo's arcade boards as a core for Chimera
 (https://github.com/ToolAssisted-run/chimera), a frontend for tool-assisted
 speedruns. It produces one file, `fbneo.chimeraCore`: the emulator as a
 sandboxed guest (`core.wbx`) plus the declarations Chimera reads. One
-package holds five systems: CPS-1, CPS-2, CPS-3, Neo Geo MVS and System 16.
+package holds six systems: CPS-1, CPS-2, CPS-3, Neo Geo MVS, System 16 and
+the Neo Geo CD (whose game is a disc image, not a rom set).
 Upstream FBNeo is a submodule; everything else here is the driver, the
 build and the gate.
 

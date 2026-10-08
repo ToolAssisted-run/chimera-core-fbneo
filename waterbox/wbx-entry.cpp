@@ -39,13 +39,19 @@ static bool Exists(const char *name)
 /* The rom sets: the Rom set slot's files, the game's own first, then any a
  * clone needs (its parent's). A rom opened with no project has no slot map;
  * the engine mounts it under its own name and says which in rom.name. */
+static bool IsDisc() { return strcmp(g_machine, "neocd") == 0; }
+
+/* A Neo Geo CD's game is the Disc slot's file: a .cue sheet, whose track
+ * files the engine mounts beside it under their own names, or a .chd. It
+ * comes back as the one "set", where a rom set's name would be. */
 static std::vector<std::string> RomSets()
 {
 	std::vector<std::string> sets;
 	char entry[512];
-	const int32_t n = wbx_slot_count("romset");
+	const char *slot = IsDisc() ? "disc" : "romset";
+	const int32_t n = wbx_slot_count(slot);
 	for (int32_t i = 0; i < n; i++)
-		if (wbx_slot_name("romset", i, entry, sizeof entry) != nullptr)
+		if (wbx_slot_name(slot, i, entry, sizeof entry) != nullptr)
 			sets.emplace_back(entry);
 	if (sets.empty())
 	{
@@ -111,11 +117,15 @@ ECL_EXPORT const char *SuggestSettings(void)
 {
 	wbx_setting_str("machine", g_machine, sizeof g_machine);
 	const std::vector<std::string> sets = RomSets();
+	fbneo_set_machine(g_machine);
 	if (sets.empty())
-		return g_suggestion.assign("{\"values\":{},\"note\":\"No rom set yet.\"}").c_str();
+		return g_suggestion.assign(IsDisc() ? "{\"values\":{},\"note\":\"No disc yet.\"}"
+		                                    : "{\"values\":{},\"note\":\"No rom set yet.\"}").c_str();
 	const std::string settings = GameSettingsJson(sets[0].c_str());
 	const int groups = fbneo_game_dip_group_count(sets[0].c_str());
-	std::string note = groups == 0
+	std::string note = IsDisc()
+		? "The console's switches are below, each at FBNeo's default: its region, its bios, and how fast it loads from the disc (FBNeo's default is faster than the console was)."
+		: groups == 0
 		? "This game has no dip switches (a CPS-2 game keeps its settings in its EEPROM, set in its service menu)."
 		: "This game's dip switches are below, each at the driver's default.";
 	g_suggestion = "{\"values\":{},\"note\":" + JsonString(note) + ",\"settings\":" + settings + "}";
@@ -153,11 +163,27 @@ ECL_EXPORT int Init(void)
 	const std::vector<std::string> sets = RomSets();
 	if (sets.empty())
 	{
-		snprintf(g_loadError, sizeof g_loadError, "no rom set: the project's Rom set slot is empty");
+		snprintf(g_loadError, sizeof g_loadError, IsDisc() ? "no disc: the project's Disc slot is empty"
+		                                                   : "no rom set: the project's Rom set slot is empty");
 		return 0;
 	}
-	for (size_t i = 1; i < sets.size(); i++)
+	for (size_t i = 1; i < sets.size() && !IsDisc(); i++)
 		fbneo_add_archive(sets[i].c_str());
+	/* The Neo Geo CD's roms are all firmware: the console's bios set, and the
+	 * zoom table it shares with the cartridge machine, from that one's set. */
+	if (IsDisc())
+	{
+		for (const char *set : {"neocdz.zip", "neogeo.zip"})
+		{
+			if (!Exists(set))
+			{
+				snprintf(g_loadError, sizeof g_loadError,
+				         "a Neo Geo CD needs its bios sets, neocdz.zip and neogeo.zip - %s is missing; add it as the project's firmware", set);
+				return 0;
+			}
+			fbneo_add_archive(set);
+		}
+	}
 	/* The Neo Geo's bios set is project firmware, mounted under its own name */
 	if (strcmp(g_machine, "neogeo") == 0)
 	{

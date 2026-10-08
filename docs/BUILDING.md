@@ -1,7 +1,7 @@
 # Building the FBNeo core
 
 This builds one file, `fbneo.chimeraCore`: FinalBurn Neo's CPS-1, CPS-2,
-CPS-3, Neo Geo and System 16 boards as a sandboxed guest (`core.wbx`) with
+CPS-3, Neo Geo and System 16 boards and its Neo Geo CD as a sandboxed guest (`core.wbx`) with
 its declarations, which Chimera loads. The steps are the ones
 `.github/workflows/chimera.yml` runs from a fresh clone on a public Ubuntu
 runner. That workflow is the reference: when this page and the workflow
@@ -234,6 +234,7 @@ holds them, under the names FBNeo gives them:
 | `samsho4.zip` with `neogeo.zip` | the Neo Geo legs: bios setting, Force 60 Hz, interpolation, opposite directions, save data |
 | `forgottn.zip` | the analog axis legs |
 | `varth.zip` | the vertical picture legs |
+| a Neo Geo CD disc, with `neocdz.zip` and `neogeo.zip` | the Neo Geo CD legs. The disc is a `.cue` sheet with its track files beside it: name it in `FBNEO_NEOCD`, or put it in `tests/roms-local/neocd/` |
 
 A system whose set is missing is skipped by name; the others still run. For
 each system present the gate proves: the panel the core binds is the one
@@ -284,7 +285,9 @@ them.
 | What | Where it goes | Notes |
 | --- | --- | --- |
 | The game's rom set, a `.zip` named as FBNeo names it | the Rom set slot, first (1 to 4 files) | The name is how the core knows the game. A clone's set holds only what differs from its parent: add the parent's set after it. Roms are found by CRC, then by name. |
-| `neogeo.zip`, the Neo Geo bios set | project firmware | Needed when the System setting is `neogeo`. No size or hash is pinned. |
+| `neogeo.zip`, the Neo Geo bios set | project firmware | Needed when the System setting is `neogeo` or `neocd`. No size or hash is pinned. |
+| A Neo Geo CD game: a `.cue` sheet with its track files beside it, or a `.chd` | the Disc slot (one) | Only when the System setting is `neocd`; the track files join the project with the sheet. A disc kept as a zip has to be unpacked first. |
+| `neocdz.zip`, the Neo Geo CD bios set | project firmware | Needed when the System setting is `neocd`. No size or hash is pinned. |
 | Save data, `.bin` files as Export Save Data wrote them | the Save data slot (0 to 8 files) | Optional. Each goes back into the part of the machine it came from before the first frame. |
 
 The System setting (`cps1`, `cps2`, `cps3`, `neogeo`, `system16`) must be

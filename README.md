@@ -1,8 +1,8 @@
 # chimera-core-fbneo
 
-[FinalBurn Neo](https://github.com/finalburnneo/FBNeo)'s arcade boards as a
-[Chimera](https://github.com/ToolAssisted-run/chimera) core, running in
-miniBox's sandbox:
+[FinalBurn Neo](https://github.com/finalburnneo/FBNeo)'s arcade boards, and
+the Neo Geo CD, as a [Chimera](https://github.com/ToolAssisted-run/chimera)
+core, running in miniBox's sandbox:
 
 | System | Machine id | Players | Panel |
 |---|---|---|---|
@@ -11,9 +11,11 @@ miniBox's sandbox:
 | Capcom CPS-3 | `CPS3` | 2 | stick, Buttons 1-6, Start, Coin |
 | SNK Neo Geo MVS | `NEOGEO` | 2 | stick, A-D, Select, Start, Coin |
 | Sega System 16 (16A, 16B) | `SYS16` | 4 | stick, Buttons 1-5, Start, Coin |
+| SNK Neo Geo CD | `NEOCD` | 2 | stick, A-D, Select, Start |
 
-Every panel also has the cabinet's Service, Test and Reset, and two analog
-axes per player for a game's dial, trackball or paddle. A game's buttons are
+Every arcade panel also has the cabinet's Service, Test and Reset, and two
+analog axes per player for a game's dial, trackball or paddle; the Neo Geo CD
+is a console, with its Reset and nothing else. A game's buttons are
 its own, in the order its FBNeo driver lists them (Street Fighter's Weak
 Punch to Strong Kick are Buttons 1-6); a control the game does not have
 leaves the input roll. Lag frames are counted: a frame in which the game did
@@ -27,6 +29,9 @@ not read its controls.
   its settings in its EEPROM, set in its service menu.
 - **Neo Geo BIOS**: every MVS, AES and UniBIOS FBNeo knows (the bios must be
   in the project's `neogeo.zip`).
+- **The Neo Geo CD's switches**, the same way (`dip.Region`, `dip.BIOS`,
+  `dip.CD Loading Speed`): FBNeo's default loads faster than the console
+  did; `Normal` is the console's own speed.
 - **CPU Clock (%)**: FBNeo's overclock (CPS-1, CPS-2, Neo Geo, System 16).
 - **Force 60 Hz**: runs a near-60 Hz board at exactly 60.
 - **Opposite Directions**: FBNeo's SOCD handling of Left+Right and Up+Down
@@ -53,8 +58,11 @@ data slot puts them back before the first frame.
   by CRC, then by name, so a set only has to hold the right bytes.
 - **A Neo Geo game also needs the bios set**, `neogeo.zip`, as the project's
   firmware.
+- **A Neo Geo CD game is a disc image** in the Disc slot: a `.cue` sheet with
+  its track files beside it, or a `.chd`. Its firmware is two bios sets,
+  `neocdz.zip` and `neogeo.zip`.
 
-The package carries no rom.
+The package carries no rom and no disc.
 
 ## Using it in Chimera
 
@@ -82,8 +90,9 @@ built; anywhere else, pass `-Dminibox_dir=<miniBox>`, `-m <miniBox>` and
 
 The gate's machine legs need rom sets in `tests/roms-local` (or `FBNEO_ROMS`):
 `msword.zip`, `ssf2t.zip`, `sfiii3.zip`, `shinobi.zip`, `samsho4.zip` and
-`neogeo.zip`. Without them it builds, checks the declarations, and says it
-skipped every machine.
+`neogeo.zip`; the Neo Geo CD's need a disc (`FBNEO_NEOCD=<its .cue>`, or one
+in `tests/roms-local/neocd`) and `neocdz.zip`. Without them it builds, checks
+the declarations, and says it skipped every machine.
 
 ## Licence
 

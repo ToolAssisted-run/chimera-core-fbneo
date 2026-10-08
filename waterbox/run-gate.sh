@@ -14,7 +14,10 @@
 # The machine legs need rom sets, which cannot ship: put them (or links to
 # them) in tests/roms-local, or point FBNEO_ROMS at a folder holding them. A
 # system with no set there is SKIPPED, visibly; a gate that ran no machine at
-# all still proves the build and the declarations.
+# all still proves the build and the declarations. The Neo Geo CD's legs need
+# a disc: FBNEO_NEOCD names its .cue sheet (the track files beside it), or the
+# first .cue in <roms>/neocd is taken; its bios sets are <roms>/neocdz.zip and
+# neogeo.zip.
 #
 # Usage: ./run-gate.sh [-r <chimera root>] [-m <minibox dir>]
 set -eu
@@ -72,7 +75,7 @@ else
 	report FAIL "package builds" "see build/gate/package.log"
 fi
 stale=""
-for src in "$here"/fbneo-driver.cpp "$here"/wbx-entry.cpp "$here"/frontend-stubs.cpp "$here"/zip-reader.cpp "$root"/meson.build; do
+for src in "$here"/fbneo-driver.cpp "$here"/wbx-entry.cpp "$here"/frontend-stubs.cpp "$here"/zip-reader.cpp "$here"/cd-drive.cpp "$root"/meson.build; do
 	[ "$core" -nt "$src" ] || stale="$stale $(basename "$src")"
 done
 if [ -f "$core" ] && [ -z "$stale" ]; then
@@ -228,6 +231,150 @@ PY
 		report SKIP "$sys: runs in the engine" "no chimera-run or package"
 	fi
 done
+
+# ------------------------------------------------ 2b. the Neo Geo CD
+# A console, and its game a disc image. discdir <dir> <cue> [silent|nobios|
+# notrack]: the files a project would mount - the sheet, every track file it
+# names, the two bios sets. "silent" puts silence where the audio tracks are
+# (files of zeros, the same sizes), "nobios" leaves the console's set out,
+# "notrack" leaves out the last track.
+discdir() {
+	python3 - "$1" "$2" "$roms" "${3:-}" <<'PY'
+import json, os, re, sys
+d, cue, roms, how = sys.argv[1:5]
+os.makedirs(d)
+tracks = [m.group(1) for m in (re.match(r'\s*FILE\s+"(.*)"', l) for l in open(cue, encoding="utf-8", errors="replace")) if m]
+os.symlink(os.path.abspath(cue), os.path.join(d, os.path.basename(cue)))
+for i, t in enumerate(tracks):
+    src = os.path.join(os.path.dirname(os.path.abspath(cue)), t)
+    if how == "notrack" and i == len(tracks) - 1:
+        continue
+    if how == "silent" and i > 0:
+        with open(os.path.join(d, t), "wb") as f:
+            f.truncate(os.path.getsize(src))
+    else:
+        os.symlink(src, os.path.join(d, t))
+for b in ("neocdz.zip", "neogeo.zip"):
+    if not (how == "nobios" and b == "neocdz.zip"):
+        os.symlink(os.path.join(roms, b), os.path.join(d, b))
+open(os.path.join(d, "settings"), "w").write(json.dumps({"machine": "neocd"}))
+open(os.path.join(d, "slots"), "w").write(json.dumps({"disc": [os.path.basename(cue)]}))
+PY
+}
+cue="${FBNEO_NEOCD:-}"
+[ -n "$cue" ] || cue="$(ls "$roms"/neocd/*.cue 2>/dev/null | head -1)"
+if [ -z "$cue" ] || [ ! -f "$cue" ]; then
+	report SKIP "neocd: every machine leg" "no disc: FBNEO_NEOCD names no .cue and $roms/neocd holds none"
+elif [ ! -f "$roms/neocdz.zip" ] || [ ! -f "$roms/neogeo.zip" ]; then
+	report SKIP "neocd: every machine leg" "no neocdz.zip and neogeo.zip (the bios sets) in $roms"
+else
+	ran_any=1
+	w="$work/neocd"
+	discdir "$w" "$cue"
+
+	"$wbxrun" "$core" "$w" --frames 1 --list-panel > "$work/neocd.panel" 2>&1 || true
+	python3 - "$here/waterbox.config" neocd "$work/neocd.panel" > "$work/neocd.panelcheck" 2>&1 <<'PY' && ok=1 || ok=0
+import json, re, sys
+cfg = json.load(open(sys.argv[1]))
+m = [m for m in cfg["machines"] if sys.argv[2] in m["when"]][0]
+got = [re.match(r"panel \d+ '(.*)' ", l).group(1) for l in open(sys.argv[3]) if l.startswith("panel ")]
+if got != m["input"]["buttons"]:
+    sys.exit(f"core: {got}\ndeclared: {m['input']['buttons']}")
+print(f"{len(got)} controls, {sum(1 for l in open(sys.argv[3]) if l.rstrip().endswith('active'))} live")
+PY
+	if [ "$ok" = 1 ]; then
+		report PASS "neocd: the panel is the declared one" "$(cat "$work/neocd.panelcheck")"
+	else
+		report FAIL "neocd: the panel is the declared one" "see build/gate/neocd.panelcheck"
+	fi
+
+	# native == sandbox as a stream: the console starts, reads the disc and
+	# takes the pad - 3000 frames, the first 1500 or so its own start-up
+	"$native" "$w" --frames 3000 --report 100 --exercise 2>"$work/neocd.ne" | awk '/^frame/' > "$work/neocd.n" || true
+	"$wbxrun" "$core" "$w" --frames 3000 --report 100 --exercise 2>"$work/neocd.we" | awk '/^frame/' > "$work/neocd.w" || true
+	pics="$(awk '{print $7}' "$work/neocd.n" | sort -u | wc -l)"
+	if [ "$(wc -l < "$work/neocd.n")" -ne 30 ] || [ "$pics" -lt 5 ]; then
+		report FAIL "neocd: the machine is alive" "$(wc -l < "$work/neocd.n") reports, $pics distinct pictures"
+	elif ! cmp -s "$work/neocd.n" "$work/neocd.w"; then
+		report FAIL "neocd: native == sandbox (3000 frames, exercised)" \
+			"first difference: $(diff "$work/neocd.n" "$work/neocd.w" | awk 'NR==2' | cut -c1-60)"
+	else
+		report PASS "neocd: native == sandbox (3000 frames, exercised)" "$pics distinct pictures"
+	fi
+
+	"$wbxrun" "$core" "$w" --frames 3000 --report 100 2>/dev/null | awk '/^frame/' > "$work/neocd.idle" || true
+	if [ -s "$work/neocd.idle" ] && ! cmp -s "$work/neocd.idle" "$work/neocd.w"; then
+		report PASS "neocd: the input reaches the machine" "negative control: idle differs"
+	else
+		report FAIL "neocd: the input reaches the machine" "an exercised run digests like an idle one"
+	fi
+
+	# savestates, with the drive reading and playing: around every frame, and
+	# across a new host - where a file handle kept in guest state would show
+	"$wbxrun" "$core" "$w" --frames 3000 --report 100 --exercise --rerecord 2>"$work/neocd.re" | awk '/^frame/' > "$work/neocd.r" || true
+	"$wbxrun" "$core" "$w" --frames 3000 --report 100 --exercise --session 2>/dev/null | awk '/^frame/' > "$work/neocd.s" || true
+	if [ -s "$work/neocd.w" ] && cmp -s "$work/neocd.w" "$work/neocd.r"; then
+		report PASS "neocd: rerecord changes nothing" "$(grep -o 'stateBytes=[0-9]*' "$work/neocd.re")"
+	else
+		report FAIL "neocd: rerecord changes nothing"
+	fi
+	if [ -s "$work/neocd.w" ] && cmp -s "$work/neocd.w" "$work/neocd.s"; then
+		report PASS "neocd: a state reopens in a new host"
+	else
+		report FAIL "neocd: a state reopens in a new host"
+	fi
+
+	# The disc's audio tracks reach the sound, and only the sound: with
+	# silence in their place the machine and its picture are the same, frame
+	# for frame, and what is heard is not.
+	discdir "$work/neocd-silent" "$cue" silent
+	"$native" "$work/neocd-silent" --frames 3000 --report 100 --exercise 2>/dev/null | awk '/^frame/' > "$work/neocd.q" || true
+	awk '{print $2, $4, $7}' "$work/neocd.n" > "$work/neocd.n.machine"
+	awk '{print $2, $4, $7}' "$work/neocd.q" > "$work/neocd.q.machine"
+	awk '{print $10}' "$work/neocd.n" > "$work/neocd.n.sound"
+	awk '{print $10}' "$work/neocd.q" > "$work/neocd.q.sound"
+	heard="$(paste -d' ' "$work/neocd.n.sound" "$work/neocd.q.sound" | awk '$1 != $2' | wc -l)"
+	if [ ! -s "$work/neocd.q" ] || ! cmp -s "$work/neocd.n.machine" "$work/neocd.q.machine"; then
+		report FAIL "neocd: the disc's music is heard" "silent tracks changed the machine or its picture"
+	elif [ "$heard" -gt 0 ]; then
+		report PASS "neocd: the disc's music is heard" "silent tracks: the sound differs in $heard of 30 reports, the machine and picture in none"
+	else
+		report FAIL "neocd: the disc's music is heard" "silent tracks sound the same: no audio track was played in 3000 frames"
+	fi
+
+	# what is missing is named
+	discdir "$work/neocd-nobios" "$cue" nobios
+	"$wbxrun" "$core" "$work/neocd-nobios" --frames 1 > "$work/neocd.nobios" 2>&1 || true
+	if grep -q "neocdz.zip is missing" "$work/neocd.nobios"; then
+		report PASS "neocd: no bios set is a load error that names it"
+	else
+		report FAIL "neocd: no bios set is a load error that names it" "$(tail -1 "$work/neocd.nobios" | cut -c1-80)"
+	fi
+	discdir "$work/neocd-notrack" "$cue" notrack
+	"$wbxrun" "$core" "$work/neocd-notrack" --frames 1 > "$work/neocd.notrack" 2>&1 || true
+	if grep -q "cannot read the disc image" "$work/neocd.notrack"; then
+		report PASS "neocd: a sheet with a track file missing is a load error"
+	else
+		report FAIL "neocd: a sheet with a track file missing is a load error" "$(tail -1 "$work/neocd.notrack" | cut -c1-80)"
+	fi
+
+	# through the engine, as a project: the sheet in the Disc slot brings its
+	# tracks, the firmware its conditions call for is the two bios sets
+	if [ -x "$run" ] && [ -f "$pkg" ]; then
+		if python3 "$here/tests/make-project.py" "$pkg" "$work/neocd.chimeraProject" 1600 neocd \
+				"press=P1 A:1500:5" -- "disc=$cue" > "$work/neocd.project" 2>&1 \
+			&& "$run" "$pkg" --project "$work/neocd.chimeraProject" --files "$(dirname "$cue")" \
+				--firmware "neocdz.zip=$roms/neocdz.zip" --firmware "neogeo.zip=$roms/neogeo.zip" \
+				> "$work/neocd.engine" 2>&1 \
+			&& grep -q '^frames=1600' "$work/neocd.engine"; then
+			report PASS "neocd: a disc project runs 1600 frames in the engine" "$(grep -c '"slot": "support"' "$work/neocd.chimeraProject") track files with the sheet"
+		else
+			report FAIL "neocd: a disc project runs 1600 frames in the engine" "see build/gate/neocd.engine"
+		fi
+	else
+		report SKIP "neocd: runs in the engine" "no chimera-run or package"
+	fi
+fi
 
 # ------------------------------------------------ 3. settings, lag, saves
 # A setting run: <workdir> <settings json> [run options] -> the last report line

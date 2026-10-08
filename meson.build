@@ -119,10 +119,25 @@ subdir(fb / 'src/burn/devices')
 subdir(fb / 'src/burn/snd')
 subdir(fb / 'src/burn/drv')
 subdir(fb / 'src/dep/libs/zlib')
-
-fbneo_deps = [burn_drv_dep, burn_dep, cpu_dep, burn_devices_dep, burn_snd_dep, zlib_dep]
+subdir(fb / 'src/dep/libs/libchdr')
 
 inc = include_directories('waterbox')
+
+# ---- the Neo Geo CD's drive --------------------------------------------------
+# FBNeo's own image reader (cue sheets with their track files, and .chd over
+# its bundled libchdr), compiled as it is. It includes the frontend's header,
+# which with no frontend named lacks one Windows type: cd-shim.h goes first.
+# libchdr's fragment leaves out the two decoders it calls (upstream's
+# makefiles add them beside it): LZMA and Zstandard, one file each.
+cd_lib = static_library('fbneo-cd',
+  files(fb / 'src/intf/cd/cd_img.cpp', fb / 'src/intf/cd/cd_chd.cpp', 'waterbox/cd-drive.cpp',
+        fb / 'src/dep/libs/lzma/libchdr_lzma.c', fb / 'src/dep/libs/zstd/zstddeclib.c'),
+  include_directories: [inc, global_inc],
+  cpp_args: ['-include', meson.current_source_dir() / 'waterbox/cd-shim.h'] + common_cpp_warning_args,
+  dependencies: [burn_dep, libchdr_dep])
+cd_dep = declare_dependency(link_with: cd_lib)
+
+fbneo_deps = [burn_drv_dep, burn_dep, cpu_dep, burn_devices_dep, burn_snd_dep, cd_dep, libchdr_dep, zlib_dep]
 
 driver_sources = files(
   'waterbox/fbneo-driver.cpp',

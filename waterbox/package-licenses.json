@@ -2,7 +2,7 @@
   "package": "fbneo",
   "effectiveTerms": "FB Neo licence (non-commercial; MAME licence for its MAME-derived code)",
   "commercialUse": "prohibited",
-  "note": "The built core combines this repository's integration (MIT) with FinalBurn Neo, whose own licence (src/license.txt) forbids selling it or seeking money from it, asks that changes to its source be made public, and forbids asking for donations for a project that uses its source. Parts of FBNeo come from MAME and are also under MAME's licence. zlib is FBNeo's own bundled copy (zlib licence). The package carries no rom: every game's rom set and the Neo Geo's bios set are the project's, supplied by the user.",
+  "note": "The built core combines this repository's integration (MIT) with FinalBurn Neo, whose own licence (src/license.txt) forbids selling it or seeking money from it, asks that changes to its source be made public, and forbids asking for donations for a project that uses its source. Parts of FBNeo come from MAME and are also under MAME's licence. zlib is FBNeo's own bundled copy (zlib licence), and so are the libraries its CD image reader opens a .chd with: libchdr (BSD-3-Clause), the LZMA SDK (public domain), the Zstandard decoder (BSD-3-Clause) and dr_flac (public domain or MIT-0). The package carries no rom and no disc: every game's rom set or disc image, and the bios sets, are the project's, supplied by the user.",
   "components": [
     {
       "name": "chimera-core-fbneo (integration)",
@@ -25,6 +25,30 @@
       "license": "Zlib",
       "url": "https://zlib.net",
       "file": "extern/FBNeo/src/dep/libs/zlib/zlib.h"
+    },
+    {
+      "name": "libchdr (bundled by FBNeo)",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/rtissera/libchdr",
+      "file": "extern/FBNeo/src/dep/libs/libchdr/LICENSE.txt"
+    },
+    {
+      "name": "LZMA SDK (bundled by FBNeo)",
+      "license": "Public domain",
+      "url": "https://www.7-zip.org/sdk.html",
+      "file": "extern/FBNeo/src/dep/libs/lzma/LICENSE"
+    },
+    {
+      "name": "Zstandard decoder (bundled by FBNeo)",
+      "license": "BSD-3-Clause",
+      "url": "https://github.com/facebook/zstd",
+      "file": "extern/FBNeo/src/dep/libs/zstd/zstddeclib.c"
+    },
+    {
+      "name": "dr_flac (bundled by FBNeo)",
+      "license": "Public domain or MIT-0",
+      "url": "https://github.com/mackron/dr_libs",
+      "file": "extern/FBNeo/src/dep/libs/dr_libs/dr_flac.h"
     }
   ]
 }

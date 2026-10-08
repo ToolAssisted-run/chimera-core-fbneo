@@ -26,17 +26,21 @@ def neogeo_bioses():
     return re.findall(r'\{\s*0x02\s*,\s*0x01\s*,\s*0x3f\s*,\s*0x[0-9a-fA-F]+\s*,\s*"([^"]+)"', src[m.end():])[:count]
 
 # id, label, setting value, players, buttons (0 = Neo Geo's A-D + Select),
-# the picture's 4:3 virtual size
+# the picture's 4:3 virtual size, and whether it is a cabinet: a coin slot per
+# player, Service and Test switches, and room for a game's analog control. The
+# Neo Geo CD is the one that is not - a console with two pads.
 MACHINES = [
-    ("CPS1", "Capcom CPS-1", "cps1", 4, 6, (384, 288)),
-    ("CPS2", "Capcom CPS-2", "cps2", 4, 6, (384, 288)),
-    ("CPS3", "Capcom CPS-3", "cps3", 2, 6, (384, 288)),
-    ("NEOGEO", "SNK Neo Geo MVS", "neogeo", 2, 0, (320, 240)),
-    ("SYS16", "Sega System 16", "system16", 4, 5, (320, 240)),
+    ("CPS1", "Capcom CPS-1", "cps1", 4, 6, (384, 288), True),
+    ("CPS2", "Capcom CPS-2", "cps2", 4, 6, (384, 288), True),
+    ("CPS3", "Capcom CPS-3", "cps3", 2, 6, (384, 288), True),
+    ("NEOGEO", "SNK Neo Geo MVS", "neogeo", 2, 0, (320, 240), True),
+    ("SYS16", "Sega System 16", "system16", 4, 5, (320, 240), True),
+    ("NEOCD", "SNK Neo Geo CD", "neocd", 2, 0, (320, 240), False),
 ]
+ARCADE = [m[2] for m in MACHINES if m[6]]
 
 
-def panel(players, buttons):
+def panel(players, buttons, cabinet=True):
     names = []
     for p in range(1, players + 1):
         P = f"P{p} "
@@ -45,21 +49,21 @@ def panel(players, buttons):
             names += [f"{P}Button {b}" for b in range(1, buttons + 1)]
         else:
             names += [P + b for b in ("A", "B", "C", "D", "Select")]
-        names += [P + "Start", P + "Coin"]
-    return names + ["Service", "Test", "Reset"]
+        names += [P + "Start"] + ([P + "Coin"] if cabinet else [])
+    return names + (["Service", "Test"] if cabinet else []) + ["Reset"]
 
 
-def axes(players):
+def axes(players, cabinet=True):
     """Two analog axes per player (dials, trackballs, paddles), FBNeo's scale."""
     return [{"name": f"P{p} Axis {a}", "min": -1024, "max": 1023, "neutral": 0}
-            for p in range(1, players + 1) for a in (1, 2)]
+            for p in range(1, players + 1) for a in (1, 2)] if cabinet else []
 
 
-def controller_name(label):
-    return label.replace("Capcom ", "").replace("SNK ", "").replace("Sega ", "") + " Panel"
+def controller_name(label, cabinet=True):
+    return label.replace("Capcom ", "").replace("SNK ", "").replace("Sega ", "") + (" Panel" if cabinet else " Pads")
 
 
-def keybinds(players, buttons):
+def keybinds(players, buttons, cabinet=True):
     """Player 1 on the keyboard and the first pad, players 2-4 on pads."""
     keys = {"Up": "Up", "Down": "Down", "Left": "Left", "Right": "Right"}
     pov = {"Up": "POV1U", "Down": "POV1D", "Left": "POV1L", "Right": "POV1R"}
@@ -84,10 +88,12 @@ def keybinds(players, buttons):
         if not buttons:
             out[P + "Select"] = ", ".join((["Q"] if first else []) + [f"J{p} B7", f"X{p} Back"])
         out[P + "Start"] = ", ".join(([f"D{p}"] if p <= 4 else []) + [f"J{p} B10", f"X{p} Start"])
-        coin_pad = f"J{p} B9" + ("" if not buttons else f", X{p} Back")
-        out[P + "Coin"] = ", ".join(([f"D{4 + p}"] if p <= 4 else []) + [coin_pad])
-    out["Service"] = "D9"
-    out["Test"] = "F2"
+        if cabinet:
+            coin_pad = f"J{p} B9" + ("" if not buttons else f", X{p} Back")
+            out[P + "Coin"] = ", ".join(([f"D{4 + p}"] if p <= 4 else []) + [coin_pad])
+    if cabinet:
+        out["Service"] = "D9"
+        out["Test"] = "F2"
     out["Reset"] = ""
     return out
 
@@ -111,7 +117,7 @@ AXIS_HEADERS = {
 }
 SYSTEM_NAMES = {
     "CPS1": "Capcom CPS-1", "CPS2": "Capcom CPS-2", "CPS3": "Capcom CPS-3",
-    "NEOGEO": "SNK Neo Geo MVS", "SYS16": "Sega System 16",
+    "NEOGEO": "SNK Neo Geo MVS", "SYS16": "Sega System 16", "NEOCD": "SNK Neo Geo CD",
 }
 
 
@@ -148,9 +154,13 @@ def main():
     out = sys.argv[1] if len(sys.argv) > 1 else HERE
     machines = []
     binds = {}
-    for mid, label, value, players, buttons, (vw, vh) in MACHINES:
-        name = controller_name(label)
+    for mid, label, value, players, buttons, (vw, vh), cabinet in MACHINES:
+        name = controller_name(label, cabinet)
         comment = (
+            f"{label}: a console with {players} pads, each a stick, A, B, C, D, Select and "
+            "Start; then the console's Reset. No coin slot, no Service or Test switch, and no "
+            "analog control."
+        ) if not cabinet else (
             f"{label}: {players} players, each "
             + (f"a stick and {buttons} buttons" if buttons else "a stick, A, B, C, D and Select")
             + ", then Start and Coin; then the cabinet's Service, Test and Reset. The buttons are "
@@ -167,11 +177,11 @@ def main():
             "virtualWidth": vw,
             "virtualHeight": vh,
             "extensions": {".zip": mid} if mid == "CPS2" else {},
-            "input": {"name": name, "_comment": comment, "buttons": panel(players, buttons),
-                      "mnemonics": mnemonics_for(panel(players, buttons)),
-                      "axes": with_headers(axes(players))},
+            "input": {"name": name, "_comment": comment, "buttons": panel(players, buttons, cabinet),
+                      "mnemonics": mnemonics_for(panel(players, buttons, cabinet)),
+                      "axes": with_headers(axes(players, cabinet))},
         })
-        binds[name] = keybinds(players, buttons)
+        binds[name] = keybinds(players, buttons, cabinet)
 
     config = {
         "coreName": "FBNeo",
@@ -212,10 +222,11 @@ def main():
                 "options": [m[2] for m in MACHINES],
                 "default": "cps2",
                 "description": (
-                    "Which arcade board this project is: Capcom's CPS-1, CPS-2 or CPS-3, SNK's "
-                    "Neo Geo MVS, or Sega's System 16 (16A and 16B). The game's rom set must be "
-                    "one of that board's; a set for another board is a load error that names the "
-                    "right one. Each board has its own control panel."
+                    "Which machine this project is: an arcade board - Capcom's CPS-1, CPS-2 or "
+                    "CPS-3, SNK's Neo Geo MVS, Sega's System 16 (16A and 16B) - or SNK's Neo Geo "
+                    "CD console. A board's game is a rom set, which must be one of that board's; "
+                    "a set for another board is a load error that names the right one. The Neo "
+                    "Geo CD's game is a disc image. Each machine has its own controls."
                 ),
             },
             {
@@ -266,7 +277,7 @@ def main():
                 "options": ["off", "neutral", "last-input-4way", "last-input-8way",
                             "first-input", "up-priority", "down-priority"],
                 "default": "last-input-8way",
-                "exposedWhen": {"setting": "machine", "in": ["cps1", "cps2", "cps3", "neogeo"]},
+                "exposedWhen": {"setting": "machine", "in": ["cps1", "cps2", "cps3", "neogeo", "neocd"]},
                 "description": (
                     "What the game sees when a player holds opposite directions together (Left "
                     "and Right, Up and Down) - FBNeo's SOCD handling. 'off' passes both through, "
@@ -312,8 +323,21 @@ def main():
                     "the set is versioned by its contents."
                 ),
                 "name": "neogeo.zip",
-                "requiredWhen": {"setting": "machine", "is": "neogeo"},
-            }
+                "requiredWhen": {"setting": "machine", "in": ["neogeo", "neocd"]},
+            },
+            {
+                "id": "neocdz.zip",
+                "display": "Neo Geo CD Bios Set",
+                "description": (
+                    "The Neo Geo CD's bios set, neocdz.zip as FBNeo names it: neocd.bin, the "
+                    "console's own bios, and any of the replacement bioses the console's BIOS "
+                    "switch can pick. Taken whole and read inside the core by CRC. The console "
+                    "also needs neogeo.zip, for the zoom table it shares with the cartridge "
+                    "machine (000-lo.lo)."
+                ),
+                "name": "neocdz.zip",
+                "requiredWhen": {"setting": "machine", "is": "neocd"},
+            },
         ],
     }
     with open(os.path.join(out, "waterbox.config"), "w") as f:
@@ -321,14 +345,28 @@ def main():
         f.write("\n")
 
     slots = {
-        "_comment": "The rom sets a project takes. Slot ids are what project manifests record.",
+        "_comment": "The rom sets or the disc a project takes. Slot ids are what project manifests record.",
         "slots": [
+            {
+                "id": "disc",
+                "title": "Disc",
+                "min": 1,
+                "max": 1,
+                "formats": ["cue", "chd"],
+                "exposedWhen": {"setting": "machine", "is": "neocd"},
+                "help": (
+                    "The Neo Geo CD game: a .cue sheet, whose track files (.bin) join the project "
+                    "automatically and must sit beside it, or a .chd. A disc kept as a zip has to "
+                    "be unpacked first."
+                ),
+            },
             {
                 "id": "romset",
                 "title": "Rom set",
                 "min": 1,
                 "max": 4,
                 "formats": ["zip"],
+                "exposedWhen": {"setting": "machine", "in": ARCADE},
                 "help": (
                     "The game's FBNeo rom set first, named as FBNeo names it (ssf2t.zip) - the "
                     "name is how the core knows the game. A clone's set holds only what differs "
@@ -344,8 +382,9 @@ def main():
                 "formats": ["bin"],
                 "help": (
                     "What a game keeps across power cycles, as Export Save Data wrote it: the "
-                    "Neo Geo's NVRAM.bin and Memory_card.bin, a CPS-2 or CPS-3 EEPROM. Each file "
-                    "goes back into the part of the machine it came from before the first frame."
+                    "Neo Geo's NVRAM.bin and Memory_card.bin, a CPS-2 or CPS-3 EEPROM, the Neo "
+                    "Geo CD's backup memory. Each file goes back into the part of the machine it "
+                    "came from before the first frame."
                 ),
             },
         ],
@@ -358,7 +397,8 @@ def main():
         "_comment": [
             "Player 1 on the keyboard (arrows, Z X C / A S D for the six buttons, 1 Start, 5 Coin) "
             "and on the first pad; players 2-4 on pads 2-4 (their Start on 2-4, Coin on 6-8). "
-            "The cabinet's Service is 9, Test F2; Reset ships unbound."
+            "The cabinet's Service is 9, Test F2; Reset ships unbound. The Neo Geo CD's pads have "
+            "no Coin, and the console no Service or Test."
         ],
         "AllTrollers": binds,
         "AllTrollersAutoFire": {name: {} for name in binds},
