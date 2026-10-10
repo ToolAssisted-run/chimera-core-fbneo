@@ -222,11 +222,14 @@ def main():
                 "options": [m[2] for m in MACHINES],
                 "default": "cps2",
                 "description": (
-                    "Which machine this project is: an arcade board - Capcom's CPS-1, CPS-2 or "
-                    "CPS-3, SNK's Neo Geo MVS, Sega's System 16 (16A and 16B) - or SNK's Neo Geo "
-                    "CD console. A board's game is a rom set, which must be one of that board's; "
-                    "a set for another board is a load error that names the right one. The Neo "
-                    "Geo CD's game is a disc image. Each machine has its own controls."
+                    "Which machine this project is. It is either an arcade "
+                    "board (Capcom's CPS-1, CPS-2 or CPS-3, SNK's Neo Geo "
+                    "MVS, Sega's System 16A or 16B) or SNK's Neo Geo CD "
+                    "console. A board's game is a ROM set, and it must be a "
+                    "set for that board. A set for another board is refused "
+                    "with a message that names the right board. The Neo Geo "
+                    "CD's game is a disc image. Each machine has its own "
+                    "controls."
                 ),
             },
             {
@@ -237,11 +240,13 @@ def main():
                 "default": neogeo_bioses()[0],
                 "exposedWhen": {"setting": "machine", "is": "neogeo"},
                 "description": (
-                    "Which bios the Neo Geo boots: an MVS (arcade) bios of a region and version, "
-                    "an AES (home console) bios, or a UniBIOS. The bios decides the region, the "
-                    "language, and whether the game runs as an arcade or a home version, so it is "
-                    "part of the machine. It must be in the project's neogeo.zip. The default is "
-                    "FBNeo's own."
+                    "Which BIOS the Neo Geo starts with. It can be an MVS "
+                    "(arcade) BIOS of a certain region and version, an AES "
+                    "(home console) BIOS, or a UniBIOS. The BIOS decides the"
+                    " region, the language and whether the game runs as its "
+                    "arcade or its home version, so it is part of the "
+                    "machine. It must be in the project's neogeo.zip. The "
+                    "default is FBNeo's own."
                 ),
             },
             {
@@ -253,10 +258,12 @@ def main():
                 "max": 400,
                 "exposedWhen": {"setting": "machine", "in": ["cps1", "cps2", "neogeo", "system16"]},
                 "description": (
-                    "The main CPU's clock, as a percentage of the board's own (FBNeo's CPU clock "
-                    "setting). Above 100 a game slows down less; below, more. It changes what the "
-                    "machine computes, so a movie needs the same value to play back. CPS-1, CPS-2, "
-                    "Neo Geo and System 16 honour it; CPS-3 does not."
+                    "The speed of the main processor, as a percentage of the"
+                    " real board's (FBNeo's CPU clock setting). Above 100 a "
+                    "game slows down less in busy scenes, and below 100 it "
+                    "slows down more. It changes how the game runs, so a "
+                    "movie needs the same value. It works on CPS-1, CPS-2, "
+                    "Neo Geo and System 16. CPS-3 ignores it."
                 ),
             },
             {
@@ -265,9 +272,10 @@ def main():
                 "type": "bool",
                 "default": False,
                 "description": (
-                    "Runs a board whose refresh is near 60 Hz (the Neo Geo's 59.18, CPS-1/2's "
-                    "59.63) at exactly 60. The game then runs that much faster against the clock "
-                    "and makes a different sound, so it is part of the machine."
+                    "Runs a board whose picture rate is close to 60 Hz "
+                    "(59.18 on the Neo Geo, 59.63 on CPS-1 and CPS-2) at "
+                    "exactly 60 Hz. The game then runs slightly faster and "
+                    "its sound changes, so it is part of the machine."
                 ),
             },
             {
@@ -279,13 +287,15 @@ def main():
                 "default": "last-input-8way",
                 "exposedWhen": {"setting": "machine", "in": ["cps1", "cps2", "cps3", "neogeo", "neocd"]},
                 "description": (
-                    "What the game sees when a player holds opposite directions together (Left "
-                    "and Right, Up and Down) - FBNeo's SOCD handling. 'off' passes both through, "
-                    "as a stick wired straight to the board would if it could press both; "
-                    "'neutral' cancels them; the others let one win (the last pressed, the "
-                    "first, or up/down). A real joystick cannot press both, so the default "
-                    "(FBNeo's own, last input, 8-way) is what a person with a stick can do; "
-                    "'off' lets a movie do what no stick can."
+                    "What the game receives when a player holds opposite "
+                    "directions at once (Left and Right, or Up and Down). "
+                    "'off' passes both on to the game. 'neutral' cancels "
+                    "both. The other choices let one direction win (the last"
+                    " one pressed, the first one pressed, or up over down). "
+                    "A real joystick cannot press both, and the default "
+                    "(FBNeo's own, last input wins, 8-way) matches what a "
+                    "person with a stick can do. 'off' lets a movie do what "
+                    "no stick can."
                 ),
             },
             {
@@ -295,9 +305,11 @@ def main():
                 "options": ["none", "2-point", "4-point"],
                 "default": "2-point",
                 "description": (
-                    "How FBNeo resamples the boards' sample chips (QSound, the MSM6295 and "
-                    "friends) to the output rate. Sound only: the machine is the same either "
-                    "way, and a movie plays back with any value. The default is FBNeo's own."
+                    "How FBNeo converts the sound of the boards' sample "
+                    "chips (QSound, the MSM6295 and similar) to the output "
+                    "rate. It affects the sound only. The game runs the "
+                    "same, and a movie plays back with any value. The "
+                    "default is FBNeo's own."
                 ),
             },
             {
@@ -307,8 +319,10 @@ def main():
                 "options": ["none", "2-point", "4-point"],
                 "default": "none",
                 "description": (
-                    "How FBNeo resamples the boards' FM chips (YM2151, YM2610) to the output rate. "
-                    "Sound only, like Sample Interpolation. The default is FBNeo's own."
+                    "How FBNeo converts the sound of the boards' FM chips "
+                    "(YM2151, YM2610) to the output rate. It affects the "
+                    "sound only, like Sample Interpolation. The default is "
+                    "FBNeo's own."
                 ),
             },
         ],
@@ -317,10 +331,12 @@ def main():
                 "id": "neogeo.zip",
                 "display": "Neo Geo Bios Set",
                 "description": (
-                    "The Neo Geo's bios set, neogeo.zip as FBNeo names it (the MVS and AES bioses, "
-                    "the Z80 bios, the fix-layer and zoom roms). Taken whole and read inside the "
-                    "core, which picks the roms it needs by CRC. No size or hash is pinned because "
-                    "the set is versioned by its contents."
+                    "The Neo Geo's BIOS set, in the file FBNeo calls "
+                    "neogeo.zip. It holds the MVS and AES BIOS ROMs, the "
+                    "sound processor's BIOS and two graphics ROMs. The whole"
+                    " zip is given to the core, which picks the ROMs it "
+                    "needs by their checksums. No size or hash is required, "
+                    "because sets differ in what they contain."
                 ),
                 "name": "neogeo.zip",
                 "requiredWhen": {"setting": "machine", "in": ["neogeo", "neocd"]},
@@ -329,11 +345,13 @@ def main():
                 "id": "neocdz.zip",
                 "display": "Neo Geo CD Bios Set",
                 "description": (
-                    "The Neo Geo CD's bios set, neocdz.zip as FBNeo names it: neocd.bin, the "
-                    "console's own bios, and any of the replacement bioses the console's BIOS "
-                    "switch can pick. Taken whole and read inside the core by CRC. The console "
-                    "also needs neogeo.zip, for the zoom table it shares with the cartridge "
-                    "machine (000-lo.lo)."
+                    "The Neo Geo CD's BIOS set, in the file FBNeo calls "
+                    "neocdz.zip. It holds neocd.bin, the console's own BIOS,"
+                    " and any replacement BIOS the console's BIOS setting "
+                    "can choose. The whole zip is given to the core, which "
+                    "picks ROMs by their checksums. The console also needs "
+                    "neogeo.zip, for a graphics ROM (000-lo.lo) it shares "
+                    "with the cartridge machine."
                 ),
                 "name": "neocdz.zip",
                 "requiredWhen": {"setting": "machine", "is": "neocd"},
@@ -345,7 +363,9 @@ def main():
         f.write("\n")
 
     slots = {
-        "_comment": "The rom sets or the disc a project takes. Slot ids are what project manifests record.",
+        "_comment": "This file lists the ROM sets or the disc a project of this core"
+            " takes. Chimera's New Project window is built from it. A "
+            "project file records its files under the slot ids used here.",
         "slots": [
             {
                 "id": "disc",
@@ -355,9 +375,10 @@ def main():
                 "formats": ["cue", "chd"],
                 "exposedWhen": {"setting": "machine", "is": "neocd"},
                 "help": (
-                    "The Neo Geo CD game: a .cue sheet, whose track files (.bin) join the project "
-                    "automatically and must sit beside it, or a .chd. A disc kept as a zip has to "
-                    "be unpacked first."
+                    "The Neo Geo CD game. It is either a .cue file or a .chd"
+                    " file. The track files (.bin) named in a .cue join the "
+                    "project automatically and must be in the same folder. A"
+                    " disc stored as a zip has to be unpacked first."
                 ),
             },
             {
@@ -368,10 +389,13 @@ def main():
                 "formats": ["zip"],
                 "exposedWhen": {"setting": "machine", "in": ARCADE},
                 "help": (
-                    "The game's FBNeo rom set first, named as FBNeo names it (ssf2t.zip) - the "
-                    "name is how the core knows the game. A clone's set holds only what differs "
-                    "from its parent, so add the parent's set after it (a clone of ssf2t needs "
-                    "ssf2t.zip too). Every rom is found by its CRC, then its name."
+                    "The game's ROM set comes first, with the file name "
+                    "FBNeo uses (for example ssf2t.zip). The name is how the"
+                    " core knows which game it is. A clone's set holds only "
+                    "the files that differ from its parent, so add the "
+                    "parent's set after it (a clone of ssf2t also needs "
+                    "ssf2t.zip). Each ROM is found by its checksum first and"
+                    " by its name second."
                 ),
             },
             {
@@ -381,10 +405,12 @@ def main():
                 "max": 8,
                 "formats": ["bin"],
                 "help": (
-                    "What a game keeps across power cycles, as Export Save Data wrote it: the "
-                    "Neo Geo's NVRAM.bin and Memory_card.bin, a CPS-2 or CPS-3 EEPROM, the Neo "
-                    "Geo CD's backup memory. Each file goes back into the part of the machine it "
-                    "came from before the first frame."
+                    "What a game keeps when the power is off, in the files "
+                    "Export Save Data wrote. These are the Neo Geo's "
+                    "NVRAM.bin and Memory_card.bin, the EEPROM of a CPS-2 or"
+                    " CPS-3 board, and the Neo Geo CD's backup memory. Each "
+                    "file is put back where it came from before the first "
+                    "frame."
                 ),
             },
         ],
