@@ -92,7 +92,8 @@ The gate's machine legs need rom sets in `tests/roms-local` (or `FBNEO_ROMS`):
 `msword.zip`, `ssf2t.zip`, `sfiii3.zip`, `shinobi.zip`, `samsho4.zip` and
 `neogeo.zip`; the Neo Geo CD's need a disc (`FBNEO_NEOCD=<its .cue>`, or one
 in `tests/roms-local/neocd`) and `neocdz.zip`. Without them it builds, checks
-the declarations, and says it skipped every machine.
+the declarations, and says it skipped every machine - but for Frog Feast, a
+free CPS-1 homebrew game CI downloads (`tests/free-rom`, `FBNEO_FREE_ROMS`).
 
 ## Licence
 

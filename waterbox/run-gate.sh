@@ -105,7 +105,7 @@ sets="cps1:msword.zip cps2:ssf2t.zip cps3:sfiii3.zip system16:shinobi.zip neogeo
 # workdir <dir> <system> <set> [bios]: the files a project would mount
 workdir() {
 	d="$1"; rm -rf "$d"; mkdir -p "$d"
-	ln -s "$roms/$3" "$d/$3"
+	ln -s "${setdir:-$roms}/$3" "$d/$3"
 	[ -n "${4:-}" ] && ln -s "$roms/$4" "$d/$4"
 	printf '{"machine":"%s"}' "$2" > "$d/settings"
 	printf '{"romset":["%s"]}' "$3" > "$d/slots"
@@ -113,10 +113,26 @@ workdir() {
 
 stream() { awk '/^frame/' "$1"; }
 
+# One game needs no rom set of anybody's: Frog Feast for the CPS-1, homebrew
+# its author gives away, which tests/free-rom/fetch.sh downloads and names
+# as FBNeo's cps1frog set (chimera issue 260; for the tests only). It runs
+# every leg below on the CPS-1 machine, under the label "frog". That is what
+# CI runs.
+#   FBNEO_FREE_ROMS   a folder fetch.sh wrote (cps1frog.zip)
+freeroms="${FBNEO_FREE_ROMS:-}"
+sets="frog:cps1frog.zip $sets"
+
 ran_any=0
 for entry in $sets; do
 	sys="${entry%%:*}"; set_="${entry#*:}"
-	if [ ! -f "$roms/$set_" ]; then
+	machine="$sys"; setdir="$roms"
+	if [ "$sys" = frog ]; then
+		machine=cps1; setdir="$freeroms"
+		if [ -z "$freeroms" ] || [ ! -f "$freeroms/$set_" ]; then
+			report SKIP "frog: every machine leg" "needs FBNEO_FREE_ROMS, a folder tests/free-rom/fetch.sh wrote"
+			continue
+		fi
+	elif [ ! -f "$roms/$set_" ]; then
 		report SKIP "$sys: every machine leg" "no $set_ in $roms"
 		continue
 	fi
@@ -130,11 +146,11 @@ for entry in $sets; do
 	fi
 	ran_any=1
 	w="$work/$sys"
-	workdir "$w" "$sys" "$set_" "$bios"
+	workdir "$w" "$machine" "$set_" "$bios"
 
 	# the panel the core binds is the panel the package declares
 	"$wbxrun" "$core" "$w" --frames 1 --list-panel > "$work/$sys.panel" 2>&1 || true
-	python3 - "$here/waterbox.config" "$sys" "$work/$sys.panel" > "$work/$sys.panelcheck" 2>&1 <<'PY' && ok=1 || ok=0
+	python3 - "$here/waterbox.config" "$machine" "$work/$sys.panel" > "$work/$sys.panelcheck" 2>&1 <<'PY' && ok=1 || ok=0
 import json, re, sys
 cfg = json.load(open(sys.argv[1]))
 m = [m for m in cfg["machines"] if sys.argv[2] in m["when"]][0]
@@ -186,10 +202,10 @@ PY
 	fi
 
 	# the wrong system is a load error that names the right one
-	other=cps1; [ "$sys" = cps1 ] && other=cps2
+	other=cps1; [ "$machine" = cps1 ] && other=cps2
 	printf '{"machine":"%s"}' "$other" > "$w/settings"
 	"$wbxrun" "$core" "$w" --frames 1 > "$work/$sys.wrong" 2>&1 || true
-	printf '{"machine":"%s"}' "$sys" > "$w/settings"
+	printf '{"machine":"%s"}' "$machine" > "$w/settings"
 	if grep -q "the project says" "$work/$sys.wrong" && grep -q "game - pick" "$work/$sys.wrong"; then
 		report PASS "$sys: a project for another board refuses it" "$(grep -o 'is a [A-Za-z0-9 -]* game' "$work/$sys.wrong")"
 	else
@@ -220,7 +236,7 @@ open(sys.argv[2], "w").write("".join(out))
 PY
 		fw=""; [ -n "$bios" ] && fw="--firmware neogeo.zip=$roms/neogeo.zip"
 		# shellcheck disable=SC2086
-		if "$run" "$pkg" "$roms/$set_" "$work/$sys.movie" --settings "{\"machine\":\"$sys\"}" $fw \
+		if "$run" "$pkg" "$setdir/$set_" "$work/$sys.movie" --settings "{\"machine\":\"$machine\"}" $fw \
 			> "$work/$sys.engine" 2>&1 \
 			&& grep -q '^frames=1600' "$work/$sys.engine"; then
 			report PASS "$sys: runs 1600 frames in the engine" "a coin at 1500"

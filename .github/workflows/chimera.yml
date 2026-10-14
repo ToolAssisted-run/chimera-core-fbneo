@@ -95,6 +95,14 @@ jobs:
           [ -f "$mb/build/meson-cpp/build.ninja" ] || meson setup "$mb/build/meson-cpp" "$mb" -Dguest_cpp=true
           meson compile -C "$mb/build/meson-cpp"
 
+      - name: Fetch the free CPS-1 game the gate runs
+        # Frog Feast for the Capcom CPS-1, homebrew its author gives away
+        # (frogfeast.rastersoft.net); the owner decided (2026-10-14) a test may
+        # use it, downloaded here and never kept in the repository or put in
+        # the package (chimera issue 260). fetch.sh checks it against
+        # tests/free-rom/frog.ref and names it as FBNeo's cps1frog set.
+        run: sh tests/free-rom/fetch.sh "$PWD/free-rom"
+
       - name: Core gate (builds and installs the package)
         # The commit is the core's authoritative version: this build is the one
         # that publishes the artifact, so what it stamps is what a movie can
@@ -103,6 +111,7 @@ jobs:
           CORE_VERSION: ${{ github.sha }}
           CHIMERA_ROOT: ${{ github.workspace }}/chimera-checkout
           MINIBOX_DIR: ${{ github.workspace }}/chimera-checkout/extern/chimera-common-minibox
+          FBNEO_FREE_ROMS: ${{ github.workspace }}/free-rom
         run: ./waterbox/run-gate.sh
 
       - name: The package through the real frontend

@@ -171,6 +171,25 @@ heard (silence in place of the audio tracks changes the sound and nothing
 else), a project through chimera-run. By hand: title, team select, a round
 fought. A `.chd` has not been run: none was at hand, and no tool to make one.
 
+## A free game in CI (chimera issue 260, user-decided 2026-10-14)
+
+A public runner may not hold a rom set, so CI ran no machine. The one free
+candidate for this core's systems is Frog Feast for the Capcom CPS-1, by
+Charles Doty (RasterSoft, 2006): its author gives the "finished version"
+away from frogfeast.rastersoft.net, and released its source for any use,
+free or commercial. It does not meet the rule the other cores' free
+programs met (built from source in CI: the source needs DOS-era tools), and
+the owner decided to use it anyway: downloaded in CI, checked against a
+pinned SHA-256, for the tests only, never kept in this repository or put in
+the package.
+
+The download is a zip holding `ffight.zip`, named so MAME runs it in place of
+Final Fight; its twelve ROMs are FBNeo's `cps1frog` set under other names,
+CRC for CRC. `tests/free-rom/fetch.sh` writes them as `cps1frog.zip` under
+FBNeo's names, and the game runs every per-system leg the paid sets run,
+labelled `frog`, on the CPS-1 machine: 23 different pictures in 1,200
+frames with the pad exercised.
+
 ## Open
 
 - Few games per system have been run: CPS-1 Magic Sword, Forgotten Worlds,

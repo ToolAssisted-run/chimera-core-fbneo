@@ -217,7 +217,14 @@ With nothing provided, four legs run:
   `waterbox/gen-config.py` writes.
 
 Every leg that runs a machine is then reported `SKIP`, with the rom set it
-wanted. This is all a public runner can do: no rom set may be put on one.
+wanted - except for one game anybody may have. Frog Feast for the CPS-1
+(Charles Doty, RasterSoft, 2006) is homebrew its author gives away from his
+own site; `tests/free-rom/fetch.sh <folder>` downloads it, refuses it unless
+it is the file `frog.ref` names, and writes it as FBNeo's `cps1frog.zip`
+(the download names the set as Final Fight, for MAME). With `FBNEO_FREE_ROMS`
+naming that folder, every machine leg runs on it, labelled `frog`, on the
+CPS-1 machine. CI does this; it is for the tests only, and the game is never
+kept in this repository or put in the package.
 The last line is `<n> passed, <n> failed, <n> skipped`. The exit status is
 non-zero on any failure, and on `NOTHING RAN` (no leg passed).
 
