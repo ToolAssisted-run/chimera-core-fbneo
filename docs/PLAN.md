@@ -194,3 +194,16 @@ frames with the pad exercised.
 
 - Few games per system have been run: CPS-1 Magic Sword, Forgotten Worlds,
   Varth; CPS-2 SSF2T, 1944; one each on CPS-3, Neo Geo, System 16.
+
+## 2026-10-14: the default bindings name keys Chimera sends
+
+Every panel's Start, Coin and Service were on D1 to D9; they are on Number1 to
+Number9. Chimera hands a key to the bindings under one name: the name its
+DistinctKeyNameOverrides gives it ("Number1", "Enter", "Backtick",
+"KeypadAdd") or else its DistinctKey name ("Up"); and unless told otherwise it
+reads the left and right Shift, Ctrl and Alt as one key each, "Shift", "Ctrl"
+and "Alt" (Input.cs, Config.MergeLAndRModifierKeys). A default binding to
+another name never fired, so those controls shipped unbound on the keyboard.
+Checked on Xvfb: with 1, Return, left Shift and Up held, Chimera reports
+Number1, Enter, Shift and Up. Left and right names stay beside the merged one,
+for a setup with the merging off.
