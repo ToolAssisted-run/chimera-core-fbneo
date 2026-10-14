@@ -87,12 +87,13 @@ def keybinds(players, buttons, cabinet=True):
             out[P + lab] = ", ".join(parts)
         if not buttons:
             out[P + "Select"] = ", ".join((["Q"] if first else []) + [f"J{p} B7", f"X{p} Back"])
-        out[P + "Start"] = ", ".join(([f"D{p}"] if p <= 4 else []) + [f"J{p} B10", f"X{p} Start"])
+        # the digit keys by the names Chimera hands to bindings (Number1, not D1)
+        out[P + "Start"] = ", ".join(([f"Number{p}"] if p <= 4 else []) + [f"J{p} B10", f"X{p} Start"])
         if cabinet:
             coin_pad = f"J{p} B9" + ("" if not buttons else f", X{p} Back")
-            out[P + "Coin"] = ", ".join(([f"D{4 + p}"] if p <= 4 else []) + [coin_pad])
+            out[P + "Coin"] = ", ".join(([f"Number{4 + p}"] if p <= 4 else []) + [coin_pad])
     if cabinet:
-        out["Service"] = "D9"
+        out["Service"] = "Number9"
         out["Test"] = "F2"
     out["Reset"] = ""
     return out
