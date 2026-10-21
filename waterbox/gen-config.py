@@ -66,7 +66,7 @@ def controller_name(label, cabinet=True):
 def keybinds(players, buttons, cabinet=True):
     """Player 1 on the keyboard and the first pad, players 2-4 on pads."""
     keys = {"Up": "Up", "Down": "Down", "Left": "Left", "Right": "Right"}
-    pov = {"Up": "POV1U", "Down": "POV1D", "Left": "POV1L", "Right": "POV1R"}
+    pov = {"Up": "POV0U", "Down": "POV0D", "Left": "POV0L", "Right": "POV0R"}
     xdir = {"Up": "DpadUp", "Down": "DpadDown", "Left": "DpadLeft", "Right": "DpadRight"}
     xstick = {"Up": "LStickUp", "Down": "LStickDown", "Left": "LStickLeft", "Right": "LStickRight"}
     # six buttons as two rows of three, the way a Capcom panel is laid out
