@@ -37,6 +37,28 @@ done
 [ -n "$mb" ] || mb="$chimera_root/extern/chimera-common-minibox"
 
 work="$root/build/gate"
+# A game runs only in a project (Chimera, 2026-10-26): crun_game <package>
+# <game> <movie> [chimera-run's options] makes one of the game and the movie,
+# with any --settings and --firmware given, and runs it with the rest.
+crun_quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+crun_game() {
+	cg_pkg="$1" cg_game="$2" cg_movie="$3" cg_made=""
+	shift 3
+	cg_n=$#
+	while [ "$cg_n" -gt 0 ]; do
+		case "$1" in
+			--settings) cg_made="$cg_made --settings $(crun_quote "$2")"; shift 2; cg_n=$((cg_n - 2)); continue ;;
+			--settings=*) cg_made="$cg_made --settings $(crun_quote "${1#--settings=}")"; shift; cg_n=$((cg_n - 1)); continue ;;
+			--firmware) cg_made="$cg_made --firmware $(crun_quote "$2")"; set -- "$@" "$1" "$2"; shift 2; cg_n=$((cg_n - 2)); continue ;;
+			--firmware=*) cg_made="$cg_made --firmware $(crun_quote "${1#--firmware=}")"; set -- "$@" "$1"; shift; cg_n=$((cg_n - 1)); continue ;;
+		esac
+		set -- "$@" "$1"; shift; cg_n=$((cg_n - 1))
+	done
+	cg_dir="$(mktemp -d "$work/project.XXXXXX")"
+	eval "\"\$run\" --new-project \"\$cg_dir/game.chimeraProject\" \"\$cg_pkg\" \"\$cg_game\" \"\$cg_movie\" $cg_made" \
+		> "$cg_dir/make.log" 2>&1 || { echo "chimera-run: no project made: $(tail -1 "$cg_dir/make.log")" >&2; return 2; }
+	"$run" --project "$cg_dir/game.chimeraProject" "$cg_pkg" --files "$(dirname "$cg_game")" "$@"
+}
 rm -rf "$work"; mkdir -p "$work"
 native="$root/build/meson-native/run-native"
 wbxrun="$root/build/meson-native/run-wbx"
@@ -236,7 +258,7 @@ open(sys.argv[2], "w").write("".join(out))
 PY
 		fw=""; [ -n "$bios" ] && fw="--firmware neogeo.zip=$roms/neogeo.zip"
 		# shellcheck disable=SC2086
-		if "$run" "$pkg" "$setdir/$set_" "$work/$sys.movie" --settings "{\"machine\":\"$machine\"}" $fw \
+		if crun_game "$pkg" "$setdir/$set_" "$work/$sys.movie" --settings "{\"machine\":\"$machine\"}" $fw \
 			> "$work/$sys.engine" 2>&1 \
 			&& grep -q '^frames=1600' "$work/$sys.engine"; then
 			report PASS "$sys: runs 1600 frames in the engine" "a coin at 1500"
@@ -523,11 +545,11 @@ if [ -f "$roms/varth.zip" ]; then
 	fi
 	if [ -x "$run" ] && [ -f "$pkg" ]; then
 		python3 -c "import sys; open(sys.argv[1],'w').write(('|...|'+'.'*12+'|'+'.'*12+'|\n')*30)" "$work/vertical.movie"
-		"$run" "$pkg" "$roms/varth.zip" "$work/vertical.movie" --settings '{"machine":"cps1"}' --meta "$work/vertical.meta" > /dev/null 2>&1 || true
+		crun_game "$pkg" "$roms/varth.zip" "$work/vertical.movie" --settings '{"machine":"cps1"}' --meta "$work/vertical.meta" > /dev/null 2>&1 || true
 		v="$(grep '^aspect=' "$work/vertical.meta" 2>/dev/null)"
 		l=""
 		if [ -f "$roms/msword.zip" ]; then
-			"$run" "$pkg" "$roms/msword.zip" "$work/vertical.movie" --settings '{"machine":"cps1"}' --meta "$work/landscape.meta" > /dev/null 2>&1 || true
+			crun_game "$pkg" "$roms/msword.zip" "$work/vertical.movie" --settings '{"machine":"cps1"}' --meta "$work/landscape.meta" > /dev/null 2>&1 || true
 			l="$(grep '^aspect=' "$work/landscape.meta" 2>/dev/null)"
 		fi
 		if [ "$v" = "aspect=3:4" ] && { [ -z "$l" ] || [ "$l" = "aspect=4:3" ]; }; then
@@ -540,9 +562,13 @@ else
 	report SKIP "cps1: vertical legs" "no varth.zip in $roms"
 fi
 
-# the game's own settings, as the engine asks for them before a project exists
+# the game's own settings, as the engine asks for them before a project is
+# final: of a project made of the game so far (a game runs only in a
+# project, Chimera 2026-10-26)
 if [ -x "$run" ] && [ -f "$pkg" ] && [ -f "$roms/msword.zip" ]; then
-	"$run" "$pkg" "$roms/msword.zip" --suggest --settings '{"machine":"cps1"}' > "$work/suggest.json" 2>&1 || true
+	sdir="$(mktemp -d "$work/project.XXXXXX")"
+	"$run" --new-project "$sdir/suggest.chimeraProject" "$pkg" "$roms/msword.zip" --settings '{"machine":"cps1"}' > "$sdir/make.log" 2>&1 \
+		&& "$run" --project "$sdir/suggest.chimeraProject" "$pkg" --files "$roms" --suggest > "$work/suggest.json" 2>&1 || true
 	n="$(python3 -c "import json,sys; t=open(sys.argv[1]).read(); print(len(json.loads(t[t.index('{'):])['settings']))" "$work/suggest.json" 2>/dev/null || echo 0)"
 	if [ "$n" -gt 0 ]; then
 		report PASS "cps1: a game declares its own settings" "$n dip switch groups (Magic Sword)"
