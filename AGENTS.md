@@ -39,7 +39,7 @@ build and the gate.
 ## Set up the build environment
 
     sudo apt-get update
-    sudo apt-get install -y --no-install-recommends meson ninja-build build-essential cmake pkg-config python3 mono-complete xvfb libgl1-mesa-dev libx11-dev libxext-dev libasound2-dev
+    sudo apt-get install -y --no-install-recommends meson ninja-build build-essential cmake pkg-config python3 libgl1-mesa-dev libx11-dev libxext-dev libasound2-dev
 
     git submodule update --init
     git clone --recursive https://github.com/ToolAssisted-run/chimera.git <chimera>
@@ -57,8 +57,8 @@ exists, use it and skip the clone.
 
 `build-package.sh` and the gate's own legs use miniBox only. The legs that
 run the package in Chimera's engine, and Chimera's contract tests, need
-Chimera built as well, with the .NET SDK 8.0: the commands are in
-`docs/BUILDING.md`.
+Chimera built as well, with its window (Chimera's `tools/ci-chimera.sh`
+builds it): see `docs/BUILDING.md`.
 
 ## Build
 
@@ -80,8 +80,8 @@ tree). It is for testing. CI stamps the commit through `CORE_VERSION`.
 Chimera ships no cores and downloads none. `build-package.sh -r <chimera>`
 writes the package into `<chimera>/build/Cores/`, which is the cores folder
 of a source checkout. For a release bundle, copy `fbneo.chimeraCore` into
-the `Cores` folder beside `Chimera.exe` (or the folder set in File > Core
-Manager > Change folder...). File > Core Manager lists the folder; Refresh
+the `cores` folder beside Chimera's program (or the folder set in Tools > Core
+Manager... > Change folder...). Tools > Core Manager... lists the folder; Refresh
 List rescans it. The same file works on Linux and on Windows.
 
 ## Test before you commit

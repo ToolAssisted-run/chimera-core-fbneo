@@ -18,22 +18,20 @@ submodule `<chimera>/extern/chimera-common-minibox`.
 - The packages the workflow's one job installs:
 
       sudo apt-get update
-      sudo apt-get install -y --no-install-recommends meson ninja-build build-essential cmake pkg-config python3 mono-complete xvfb libgl1-mesa-dev libx11-dev libxext-dev libasound2-dev
+      sudo apt-get install -y --no-install-recommends meson ninja-build build-essential cmake pkg-config python3 libgl1-mesa-dev libx11-dev libxext-dev libasound2-dev
 
   No compiler version is pinned: the build uses the `gcc` and `g++` that
   `build-essential` installs. The same job builds Chimera; this
-  repository's own build files name none of `cmake`, `pkg-config`,
-  `mono-complete`, `xvfb` or the `-dev` libraries.
+  repository's own build files name none of `cmake`, `pkg-config`
+  or the `-dev` libraries.
 - `perl`: this repository's `meson.build` requires it, for upstream's
   generators. `git` and `curl` are used too (by the scripts and by miniBox's
   build). The workflow installs none of the three, so they have to be there
   already.
-- The .NET SDK 8.0, for building Chimera and running its contract tests. The
-  workflow gets it from `actions/setup-dotnet@v4` with
-  `dotnet-version: '8.0'`; by hand, Chimera's README gives
-
-      curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0
-
+- For Chimera's contract tests, Chimera built with its window. Chimera's
+  `tools/ci-chimera.sh` installs what that needs (Qt 6.12, from Qt's own
+  archives with aqt) and builds it; the workflow keeps Qt in `~/qt` between
+  runs.
 - The network, once: miniBox's C++ guest toolchain downloads the GCC source
   that matches the host `gcc` (about 84 MB) and builds libstdc++ for the
   guest from it. Nothing in this repository downloads anything.
@@ -180,12 +178,11 @@ gets there as a file.
 
 - **A Chimera source checkout.** The cores folder is `<chimera>/build/Cores/`
   and `build-package.sh -r <chimera>` has already written the package there.
-  Start Chimera (`<chimera>/build/ChimeraMono.sh` on Linux).
-- **A release bundle.** Copy `fbneo.chimeraCore` into the `Cores` folder
-  beside `Chimera.exe`, or into the folder chosen in File > Core Manager >
+  Start Chimera (`<chimera>/build/meson-linux/source/ui/chimera` on Linux).
+- **A release bundle.** Copy `fbneo.chimeraCore` into the `cores` folder beside Chimera's program, or into the folder chosen in Tools > Core Manager... >
   Change folder... The same file serves a Linux and a Windows Chimera.
 
-File > Core Manager lists the packages in that folder; Refresh List rescans
+Tools > Core Manager... lists the packages in that folder; Refresh List rescans
 it. A hand-built version reads as its commit followed by `local`.
 
 To use a published build instead, download `fbneo-<version>.chimeraCore`
@@ -259,22 +256,15 @@ makes (next section); without it they report `SKIP`, with the reason
 ### Chimera's contract tests
 
 The workflow then runs Chimera's own tests against the package the gate
-installed. They need Chimera's natives and the managed solution built
-first, as the workflow builds them:
+installed. They need Chimera built with its window
+first, as the workflow builds it:
 
-    cd <chimera>
-    meson setup build/meson-linux --prefix "$PWD/build" --libdir dll
-    meson compile -C build/meson-linux
-    meson install -C build/meson-linux
-    dotnet build source/gui/Chimera.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
+    <chimera>/tools/ci-chimera.sh
 
 In the workflow these come before the gate, so `chimera-run` exists when
 the gate runs. Then:
 
-    cd <chimera>
-    CHIMERA_CORES_DIR=<chimera>/build/Cores dotnet test source/gui/Chimera.Tests.Client.Common/Chimera.Tests.Client.Common.csproj \
-      -c Release --nologo \
-      --filter "FullyQualifiedName~InstalledCorePackagesTests|FullyQualifiedName~MnemonicUniquenessTests"
+    CHIMERA_CORES_DIR=<chimera>/build/Cores <chimera>/build/meson-linux/source/ui/test-packages
 
 They prove the package is readable, is built for a guest ABI this frontend
 runs, becomes a working factory, binds only buttons its controllers

@@ -69,8 +69,8 @@ The package carries no rom and no disc.
 Chimera includes no cores and downloads none. Download
 `fbneo-<version>.chimeraCore` from this repository's
 [Releases](https://github.com/ToolAssisted-run/chimera-core-fbneo/releases)
-page, or build it, and put it in the `Cores` folder beside `Chimera.exe`.
-File > Core Manager lists that folder and can point Chimera at another. The
+page, or build it, and put it in the `cores` folder beside Chimera's program.
+Tools > Core Manager... lists that folder and can point Chimera at another. The
 same file works on Linux and on Windows.
 
 ## Building
