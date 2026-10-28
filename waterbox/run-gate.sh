@@ -228,7 +228,7 @@ PY
 	printf '{"machine":"%s"}' "$other" > "$w/settings"
 	"$wbxrun" "$core" "$w" --frames 1 > "$work/$sys.wrong" 2>&1 || true
 	printf '{"machine":"%s"}' "$machine" > "$w/settings"
-	if grep -q "the project says" "$work/$sys.wrong" && grep -q "game - pick" "$work/$sys.wrong"; then
+	if grep -q "error.wrong_machine" "$work/$sys.wrong"; then
 		report PASS "$sys: a project for another board refuses it" "$(grep -o 'is a [A-Za-z0-9 -]* game' "$work/$sys.wrong")"
 	else
 		report FAIL "$sys: a project for another board refuses it" "$(tail -1 "$work/$sys.wrong")"
@@ -383,14 +383,14 @@ PY
 	# what is missing is named
 	discdir "$work/neocd-nobios" "$cue" nobios
 	"$wbxrun" "$core" "$work/neocd-nobios" --frames 1 > "$work/neocd.nobios" 2>&1 || true
-	if grep -q "neocdz.zip is missing" "$work/neocd.nobios"; then
+	if grep -q "error.neocd_bios_missing.neocdz.zip" "$work/neocd.nobios"; then
 		report PASS "neocd: no bios set is a load error that names it"
 	else
 		report FAIL "neocd: no bios set is a load error that names it" "$(tail -1 "$work/neocd.nobios" | cut -c1-80)"
 	fi
 	discdir "$work/neocd-notrack" "$cue" notrack
 	"$wbxrun" "$core" "$work/neocd-notrack" --frames 1 > "$work/neocd.notrack" 2>&1 || true
-	if grep -q "cannot read the disc image" "$work/neocd.notrack"; then
+	if grep -q "error.disc_unreadable" "$work/neocd.notrack"; then
 		report PASS "neocd: a sheet with a track file missing is a load error"
 	else
 		report FAIL "neocd: a sheet with a track file missing is a load error" "$(tail -1 "$work/neocd.notrack" | cut -c1-80)"
@@ -446,7 +446,7 @@ if [ -d "$work/system16" ]; then
 	fi
 	bogus="$(setrun "$work/system16" '{"machine":"system16","dip.Lives":"99"}')"
 	case "$bogus" in
-		*"is not one"*) report PASS "system16: a switch the game lacks is refused" ;;
+		*"error.bad_dip"*) report PASS "system16: a switch the game lacks is refused" ;;
 		*) report FAIL "system16: a switch the game lacks is refused" "$bogus" ;;
 	esac
 fi
@@ -581,7 +581,7 @@ fi
 if [ -f "$roms/samsho4.zip" ]; then
 	workdir "$work/nobios" neogeo samsho4.zip
 	"$wbxrun" "$core" "$work/nobios" --frames 1 > "$work/nobios.log" 2>&1 || true
-	if grep -q "needs its bios set, neogeo.zip" "$work/nobios.log"; then
+	if grep -q "error.needs_bios" "$work/nobios.log"; then
 		report PASS "neogeo: no bios set is a load error naming it"
 	else
 		report FAIL "neogeo: no bios set is a load error naming it" "$(tail -1 "$work/nobios.log")"

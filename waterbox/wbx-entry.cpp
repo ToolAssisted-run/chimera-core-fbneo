@@ -19,6 +19,11 @@
 
 #include "fbneo-driver.h"
 
+/* A text a person reads is a key of languages/en.json, each of its
+ * arguments after a TEXT_ARG (chimera docs/translations.md). TEXT_ARG is a
+ * string of its own so the byte after it is never read as more of its hex. */
+#define TEXT_ARG "\x1f"
+
 static char g_loadError[512];
 static char g_machine[16];
 
@@ -98,9 +103,7 @@ static std::string GameSettingsJson(const char *game)
 		for (int o = 0; o < fbneo_dip_option_count(g); o++)
 			out += (o ? "," : "") + JsonString(fbneo_dip_option_name(g, o));
 		out += "],\"default\":" + JsonString(def >= 0 ? fbneo_dip_option_name(g, def) : fbneo_dip_option_name(g, 0));
-		out += ",\"description\":" + JsonString("A dip switch of this game's board: '" + name +
-		       "'. The game reads it as part of the machine, so a movie needs the same value to play back. "
-		       "The default is the driver's.") + "}";
+		out += ",\"description\":" + JsonString("game_setting.dip" TEXT_ARG + name) + "}";
 	}
 	return out + "]";
 }
@@ -119,15 +122,15 @@ ECL_EXPORT const char *SuggestSettings(void)
 	const std::vector<std::string> sets = RomSets();
 	fbneo_set_machine(g_machine);
 	if (sets.empty())
-		return g_suggestion.assign(IsDisc() ? "{\"values\":{},\"note\":\"No disc yet.\"}"
-		                                    : "{\"values\":{},\"note\":\"No rom set yet.\"}").c_str();
+		return g_suggestion.assign(IsDisc() ? "{\"values\":{},\"note\":\"note.no_disc\"}"
+		                                    : "{\"values\":{},\"note\":\"note.no_set\"}").c_str();
 	const std::string settings = GameSettingsJson(sets[0].c_str());
 	const int groups = fbneo_game_dip_group_count(sets[0].c_str());
 	std::string note = IsDisc()
-		? "The console's switches are below, each at FBNeo's default: its region, its bios, and how fast it loads from the disc (FBNeo's default is faster than the console was)."
+		? "note.console_switches"
 		: groups == 0
-		? "This game has no dip switches (a CPS-2 game keeps its settings in its EEPROM, set in its service menu)."
-		: "This game's dip switches are below, each at the driver's default.";
+		? "note.no_dips"
+		: "note.dips";
 	g_suggestion = "{\"values\":{},\"note\":" + JsonString(note) + ",\"settings\":" + settings + "}";
 	return g_suggestion.c_str();
 }
@@ -148,7 +151,7 @@ ECL_EXPORT int Init(void)
 		char val[32];
 		if (wbx_setting_str(key, val, sizeof val) > 0 && !fbneo_set_option(key, val))
 		{
-			snprintf(g_loadError, sizeof g_loadError, "setting %s: unknown value '%s'", key, val);
+			snprintf(g_loadError, sizeof g_loadError, "error.bad_setting" TEXT_ARG "%s" TEXT_ARG "%s", key, val);
 			return 0;
 		}
 	}
@@ -163,8 +166,7 @@ ECL_EXPORT int Init(void)
 	const std::vector<std::string> sets = RomSets();
 	if (sets.empty())
 	{
-		snprintf(g_loadError, sizeof g_loadError, IsDisc() ? "no disc: the project's Disc slot is empty"
-		                                                   : "no rom set: the project's Rom set slot is empty");
+		snprintf(g_loadError, sizeof g_loadError, IsDisc() ? "error.no_disc" : "error.no_set");
 		return 0;
 	}
 	for (size_t i = 1; i < sets.size() && !IsDisc(); i++)
@@ -177,8 +179,7 @@ ECL_EXPORT int Init(void)
 		{
 			if (!Exists(set))
 			{
-				snprintf(g_loadError, sizeof g_loadError,
-				         "a Neo Geo CD needs its bios sets, neocdz.zip and neogeo.zip - %s is missing; add it as the project's firmware", set);
+				snprintf(g_loadError, sizeof g_loadError, "error.neocd_bios_missing" TEXT_ARG "%s", set);
 				return 0;
 			}
 			fbneo_add_archive(set);
@@ -190,7 +191,7 @@ ECL_EXPORT int Init(void)
 		if (!Exists("neogeo.zip"))
 		{
 			snprintf(g_loadError, sizeof g_loadError,
-			         "a Neo Geo needs its bios set, neogeo.zip - add it as the project's Neo Geo Bios Set firmware");
+			         "error.needs_bios");
 			return 0;
 		}
 		fbneo_add_archive("neogeo.zip");
@@ -235,7 +236,7 @@ ECL_EXPORT int Init(void)
 		if (r != 1)
 		{
 			snprintf(g_loadError, sizeof g_loadError,
-			         r == 0 ? "save data %s: %s keeps no such thing" : "save data %s: the wrong size for %s",
+			         r == 0 ? "error.save_not_kept" TEXT_ARG "%s" TEXT_ARG "%s" : "error.save_size" TEXT_ARG "%s" TEXT_ARG "%s",
 			         base, fbneo_game_name());
 			return 0;
 		}

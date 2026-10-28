@@ -3,7 +3,7 @@
   "slots": [
     {
       "id": "disc",
-      "title": "Disc",
+      "title": "slot.disc",
       "min": 1,
       "max": 1,
       "formats": [
@@ -14,11 +14,11 @@
         "setting": "machine",
         "is": "neocd"
       },
-      "help": "The Neo Geo CD game. It is either a .cue file or a .chd file. The track files (.bin) named in a .cue join the project automatically and must be in the same folder. A disc stored as a zip has to be unpacked first."
+      "help": "slot.disc.help"
     },
     {
       "id": "romset",
-      "title": "Rom set",
+      "title": "slot.romset",
       "min": 1,
       "max": 4,
       "formats": [
@@ -34,17 +34,17 @@
           "system16"
         ]
       },
-      "help": "The game's ROM set comes first, with the file name FBNeo uses (for example ssf2t.zip). The name is how the core knows which game it is. A clone's set holds only the files that differ from its parent, so add the parent's set after it (a clone of ssf2t also needs ssf2t.zip). Each ROM is found by its checksum first and by its name second."
+      "help": "slot.romset.help"
     },
     {
       "id": "savedata",
-      "title": "Save data",
+      "title": "slot.savedata",
       "min": 0,
       "max": 8,
       "formats": [
         "bin"
       ],
-      "help": "What a game keeps when the power is off, in the files Export Save Data wrote. These are the Neo Geo's NVRAM.bin and Memory_card.bin, the EEPROM of a CPS-2 or CPS-3 board, and the Neo Geo CD's backup memory. Each file is put back where it came from before the first frame."
+      "help": "slot.savedata.help"
     }
   ]
 }

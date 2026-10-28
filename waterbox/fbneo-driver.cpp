@@ -49,6 +49,11 @@ INT32 nInputIntfMouseDivider = 1;
 
 // ---- state -----------------------------------------------------------------
 
+/* A text a person reads is a key of languages/en.json, each of its
+ * arguments after a TEXT_ARG (chimera docs/translations.md). TEXT_ARG is a
+ * string of its own so the byte after it is never read as more of its hex. */
+#define TEXT_ARG "\x1f"
+
 static std::string s_error;
 static std::string s_machine;
 static std::vector<std::shared_ptr<chimera::zip_index>> s_archives;
@@ -556,8 +561,7 @@ int fbneo_init(const char* game_archive)
     const std::string image = game_archive ? game_archive : "";
     if (image.empty() || image.size() >= sizeof CDEmuImage)
     {
-      s_error = image.empty() ? "no disc: a Neo Geo CD project needs a disc image"
-                              : "the disc image's path is too long: " + image;
+      s_error = image.empty() ? std::string("error.no_disc") : "error.path_too_long" TEXT_ARG + image;
       return 0;
     }
     strcpy(CDEmuImage, image.c_str());
@@ -568,7 +572,7 @@ int fbneo_init(const char* game_archive)
     fbneo_add_archive(game_archive);
     if (s_archives.empty())
     {
-      s_error = "cannot read the game's archive " + std::string(game_archive ? game_archive : "");
+      s_error = "error.archive_unreadable" TEXT_ARG + std::string(game_archive ? game_archive : "");
       return 0;
     }
     std::rotate(s_archives.begin(), s_archives.end() - 1, s_archives.end());
@@ -576,16 +580,14 @@ int fbneo_init(const char* game_archive)
 
   if (!SelectDriver(base))
   {
-    s_error = "no CPS-1, CPS-2, CPS-3, Neo Geo or System 16 game is called '" + base +
-              "' - the rom set must keep FBNeo's name for it (" + base + ".zip)";
+    s_error = "error.unknown_set" TEXT_ARG + base;
     return 0;
   }
   const std::string system = SystemOf(BurnDrvGetHardwareCode());
   if (!s_machine.empty() && system != s_machine)
   {
-    s_error = "the project says " + std::string(DisplayName(s_machine)) + ", but " + base +
-              " is a " + DisplayName(system) + " game - pick " + DisplayName(system) +
-              " in the New Project wizard's System box";
+    s_error = "error.wrong_machine" TEXT_ARG + std::string(DisplayName(s_machine)) + TEXT_ARG + base + TEXT_ARG +
+              DisplayName(system);
     return 0;
   }
 
@@ -618,19 +620,14 @@ int fbneo_init(const char* game_archive)
   // table of contents while it starts.
   if (disc && CDEmuInit() != 0)
   {
-    s_error = "cannot read the disc image " + std::string(CDEmuImage) +
-              " - it must be a .cue sheet with every track file it names beside it, or a .chd";
+    s_error = "error.disc_unreadable" TEXT_ARG + std::string(CDEmuImage);
     return 0;
   }
   if (BurnDrvInit() != 0)
   {
     if (disc)
       CDEmuExit();
-    s_error = disc ? "FBNeo could not start the Neo Geo CD - its bios is missing or wrong (the log "
-                     "names the rom): neocd.bin from neocdz.zip, 000-lo.lo from neogeo.zip"
-                   : "FBNeo could not start " + base +
-                         " - a rom is missing or wrong (the log names it); a clone needs its "
-                         "parent's set, a Neo Geo game the bios set";
+    s_error = disc ? std::string("error.neocd_not_started") : "error.not_started" TEXT_ARG + base;
     return 0;
   }
   s_running = true;
@@ -677,8 +674,8 @@ int fbneo_init(const char* game_archive)
   {
     if (!fbneo_dip_set(group.c_str(), option.c_str()))
     {
-      s_error = "the dip switch setting '" + group + "' = '" + option + "' is not one " + base +
-                " has (its switches: " + std::to_string(s_dips.size()) + " groups)";
+      s_error = "error.bad_dip" TEXT_ARG + group + TEXT_ARG + option + TEXT_ARG + base + TEXT_ARG +
+                std::to_string(s_dips.size());
       return 0;
     }
   }
