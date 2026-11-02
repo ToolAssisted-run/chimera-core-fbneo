@@ -405,7 +405,7 @@ PY
 				--firmware "neocdz.zip=$roms/neocdz.zip" --firmware "neogeo.zip=$roms/neogeo.zip" \
 				> "$work/neocd.engine" 2>&1 \
 			&& grep -q '^frames=1600' "$work/neocd.engine"; then
-			report PASS "neocd: a disc project runs 1600 frames in the engine" "$(grep -c '"slot": "support"' "$work/neocd.chimeraProject") track files with the sheet"
+			report PASS "neocd: a disc project runs 1600 frames in the engine" "$(python3 -c 'import json, sys, zipfile; print(sum(f["slot"] == "support" for f in json.loads(zipfile.ZipFile(sys.argv[1]).read("project.json"))["files"]))' "$work/neocd.chimeraProject") track files with the sheet"
 		else
 			report FAIL "neocd: a disc project runs 1600 frames in the engine" "see build/gate/neocd.engine"
 		fi
