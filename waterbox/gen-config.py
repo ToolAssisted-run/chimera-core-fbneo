@@ -213,6 +213,7 @@ def main():
         "systemNames": SYSTEM_NAMES,
         "author": "The FinalBurn Neo team; chimera port by Sergio Martin",
         "url": "https://github.com/ToolAssisted-run/chimera-core-fbneo",
+        "runsOn": ["windows-x86_64", "linux-x86_64", "macos-x86_64"],
         "machineSetting": "machine",
         "romFile": "romset",
         "deterministic": True,
